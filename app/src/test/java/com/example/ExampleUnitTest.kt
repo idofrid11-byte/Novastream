@@ -72,4 +72,17 @@ class ExampleUnitTest {
 
         assertEquals(0.5f, item.progressFraction, 0.01f)
     }
+
+    @Test
+    fun testSubtitleProvider() {
+        val availableLangs = com.example.data.subtitles.SubtitleProvider.AVAILABLE_LANGUAGES
+        assertTrue(availableLangs.any { it.first == "eng" })
+        assertTrue(availableLangs.any { it.first == "spa" })
+
+        val cues = com.example.data.subtitles.SubtitleProvider.getCues("blender_big_buck_bunny", "eng")
+        assertTrue(cues.isNotEmpty())
+        assertTrue(cues.first().text.isNotBlank())
+        assertTrue(cues.first().startMs < cues.first().endMs)
+    }
 }
+

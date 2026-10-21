@@ -25,11 +25,15 @@ class LibraryRepository(private val context: Context) {
     private val _libraryItems = MutableStateFlow<List<LibraryItem>>(emptyList())
     val libraryItems: StateFlow<List<LibraryItem>> = _libraryItems.asStateFlow()
 
+    private val _watchedEpisodes = MutableStateFlow<Set<String>>(emptySet())
+    val watchedEpisodes: StateFlow<Set<String>> = _watchedEpisodes.asStateFlow()
+
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val TAG = "LibraryRepository"
 
     init {
         loadLibrary()
+        loadWatchedEpisodes()
         // Listen to auth state to sync with Firestore
         auth.addAuthStateListener { firebaseAuth ->
             val user = firebaseAuth.currentUser
@@ -369,5 +373,122 @@ class LibraryRepository(private val context: Context) {
         saveLibrary()
 
         itemToSync?.let { syncItemToCloud(it) }
+    }
+
+    private fun loadWatchedEpisodes() {
+        val set = prefs.getStringSet("watched_episodes_ids", emptySet()) ?: emptySet()
+        _watchedEpisodes.value = set.toSet()
+    }
+
+    private fun saveWatchedEpisodes() {
+        prefs.edit().putStringSet("watched_episodes_ids", _watchedEpisodes.value).apply()
+    }
+
+    fun isEpisodeWatched(episodeId: String): Boolean {
+        return _watchedEpisodes.value.contains(episodeId)
+    }
+
+    fun toggleEpisodeWatched(episodeId: String, seriesMeta: MetaDetail? = null, episodeTitle: String? = null) {
+        val current = _watchedEpisodes.value.toMutableSet()
+        val willBeWatched = !current.contains(episodeId)
+        if (willBeWatched) {
+            current.add(episodeId)
+        } else {
+            current.remove(episodeId)
+        }
+        _watchedEpisodes.value = current
+        saveWatchedEpisodes()
+
+        if (seriesMeta != null && willBeWatched) {
+            updateProgress(
+                id = seriesMeta.id,
+                positionMs = 1000L,
+                durationMs = 1000L,
+                episodeId = episodeId,
+                episodeTitle = episodeTitle,
+                metaFallback = seriesMeta
+            )
+        }
+    }
+
+    fun markSeasonWatched(episodeIds: List<String>, isWatched: Boolean, seriesMeta: MetaDetail? = null) {
+        val current = _watchedEpisodes.value.toMutableSet()
+        if (isWatched) {
+            current.addAll(episodeIds)
+        } else {
+            current.removeAll(episodeIds.toSet())
+        }
+        _watchedEpisodes.value = current
+        saveWatchedEpisodes()
+
+        if (isWatched && seriesMeta != null && episodeIds.isNotEmpty()) {
+            val lastId = episodeIds.last()
+            updateProgress(
+                id = seriesMeta.id,
+                positionMs = 1000L,
+                durationMs = 1000L,
+                episodeId = lastId,
+                episodeTitle = "Season Complete",
+                metaFallback = seriesMeta
+            )
+        }
+    }
+
+    fun isMovieWatched(id: String): Boolean {
+        val item = getItem(id)
+        return item != null && (item.status == WatchStatus.COMPLETED || item.progressFraction >= 0.95f)
+    }
+
+    fun toggleMovieWatched(meta: MetaDetail) {
+        val item = getItem(meta.id)
+        val currentlyWatched = item != null && (item.status == WatchStatus.COMPLETED || item.progressFraction >= 0.95f)
+        val current = _libraryItems.value.toMutableList()
+        val index = current.indexOfFirst { it.id == meta.id }
+
+        if (currentlyWatched) {
+            if (index >= 0) {
+                val updated = current[index].copy(
+                    status = WatchStatus.PLAN_TO_WATCH,
+                    watchPositionMs = 0L
+                )
+                current[index] = updated
+                _libraryItems.value = current
+                saveLibrary()
+                syncItemToCloud(updated)
+            }
+        } else {
+            val dur = if (index >= 0 && current[index].durationMs > 0) current[index].durationMs else 3600000L
+            val updated = if (index >= 0) {
+                current[index].copy(
+                    status = WatchStatus.COMPLETED,
+                    watchPositionMs = dur,
+                    durationMs = dur,
+                    lastWatchedTimestamp = System.currentTimeMillis()
+                )
+            } else {
+                LibraryItem(
+                    id = meta.id,
+                    type = meta.type,
+                    name = meta.name,
+                    poster = meta.poster,
+                    background = meta.background,
+                    releaseInfo = meta.releaseInfo,
+                    imdbRating = meta.imdbRating,
+                    genres = meta.genres,
+                    status = WatchStatus.COMPLETED,
+                    watchPositionMs = dur,
+                    durationMs = dur,
+                    lastWatchedTimestamp = System.currentTimeMillis()
+                )
+            }
+            if (index >= 0) {
+                current[index] = updated
+            } else {
+                current.add(0, updated)
+            }
+            _libraryItems.value = current
+            saveLibrary()
+            syncItemToCloud(updated)
+        }
     }
 }

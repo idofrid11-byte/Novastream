@@ -475,6 +475,206 @@ fun AccountScreen(
                     }
                 }
 
+                // Playback, Subtitles & Audio Defaults
+                item {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text(
+                        text = "Subtitles & Audio Preferences",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    var defaultSubsEnabled by remember { mutableStateOf(true) }
+                    var preferredLanguage by remember { mutableStateOf("eng") }
+                    var defaultBoost by remember { mutableStateOf(100) }
+
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = StreamCard)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            // Subtitles Default Toggle
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Subtitles, contentDescription = null, tint = StreamCyan, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text("Auto-Enable Subtitles", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                        Text("Turn on subtitles when playback starts", color = TextMuted, fontSize = 11.sp)
+                                    }
+                                }
+                                Switch(
+                                    checked = defaultSubsEnabled,
+                                    onCheckedChange = { defaultSubsEnabled = it },
+                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.Black, checkedTrackColor = StreamCyan)
+                                )
+                            }
+
+                            Divider(color = StreamBorder, modifier = Modifier.padding(vertical = 12.dp))
+
+                            // Preferred Language
+                            Text("Default Subtitle Language", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                val langs = listOf("eng" to "English", "spa" to "Spanish", "fre" to "French", "ger" to "German", "jpn" to "Japanese")
+                                langs.forEach { (code, name) ->
+                                    val isSelected = preferredLanguage == code
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { preferredLanguage = code },
+                                        label = { Text(name, fontSize = 11.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = StreamCyan,
+                                            selectedLabelColor = Color.Black
+                                        )
+                                    )
+                                }
+                            }
+
+                            Divider(color = StreamBorder, modifier = Modifier.padding(vertical = 12.dp))
+
+                            // Default Audio Boost
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.VolumeUp, contentDescription = null, tint = StreamPurple, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text("Default Dialogue Boost", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("Enhances voice clarity during quiet scenes", color = TextMuted, fontSize = 11.sp)
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val boosts = listOf(100 to "Standard (100%)", 125 to "Enhanced (125%)", 150 to "Max Voice (150%)")
+                                boosts.forEach { (pct, label) ->
+                                    val isSelected = defaultBoost == pct
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { defaultBoost = pct },
+                                        label = { Text(label, fontSize = 11.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = StreamPurple,
+                                            selectedLabelColor = Color.White
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Streaming & Source Options
+                item {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text(
+                        text = "Streaming & Playback Options",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    val preferredQuality by viewModel.preferredQuality.collectAsState()
+                    var autoPlayNext by remember { mutableStateOf(true) }
+                    var preferExternalPlayer by remember { mutableStateOf(false) }
+
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = StreamCard)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            // Preferred Quality
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.HighQuality, contentDescription = null, tint = StreamCyan, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text("Default Stream Quality", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("Preferred resolution when auto-resolving streams", color = TextMuted, fontSize = 11.sp)
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                val qualities = listOf("auto" to "Auto Best", "4k" to "4K UHD", "1080p" to "1080p", "720p" to "720p Saver")
+                                qualities.forEach { (key, label) ->
+                                    val isSelected = preferredQuality == key
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { viewModel.setPreferredQuality(key) },
+                                        label = { Text(label, fontSize = 11.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = StreamCyan,
+                                            selectedLabelColor = Color.Black
+                                        )
+                                    )
+                                }
+                            }
+
+                            Divider(color = StreamBorder, modifier = Modifier.padding(vertical = 12.dp))
+
+                            // Auto-play next episode
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.SkipNext, contentDescription = null, tint = StreamPurple, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text("Auto-Play Next Episode", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                        Text("Seamlessly start the next episode upon finish", color = TextMuted, fontSize = 11.sp)
+                                    }
+                                }
+                                Switch(
+                                    checked = autoPlayNext,
+                                    onCheckedChange = { autoPlayNext = it },
+                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.Black, checkedTrackColor = StreamPurple)
+                                )
+                            }
+
+                            Divider(color = StreamBorder, modifier = Modifier.padding(vertical = 12.dp))
+
+                            // External Player preference
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.OpenInNew, contentDescription = null, tint = StreamGold, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text("Support External Players", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                        Text("Offer 1-tap launch into VLC, Just Player, or MX Player", color = TextMuted, fontSize = 11.sp)
+                                    }
+                                }
+                                Switch(
+                                    checked = preferExternalPlayer,
+                                    onCheckedChange = { preferExternalPlayer = it },
+                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.Black, checkedTrackColor = StreamGold)
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Account Actions
                 item {
                     Spacer(modifier = Modifier.height(28.dp))

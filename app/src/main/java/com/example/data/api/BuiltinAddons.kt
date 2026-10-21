@@ -329,7 +329,8 @@ object BuiltinAddons {
                     episode = 1,
                     released = "2013-05-15",
                     thumbnail = "https://images.unsplash.com/photo-1535268647677-300dbf3d78d1?q=80&w=600",
-                    overview = "Koro encounters a formidable fence and interstate across the wild Argentine highway."
+                    overview = "Koro encounters a formidable fence and interstate across the wild Argentine highway.",
+                    seasonTitle = "Season 1: Patagonian Escapades"
                 ),
                 VideoEpisode(
                     id = "blender_caminandes_series:1:2",
@@ -338,7 +339,8 @@ object BuiltinAddons {
                     episode = 2,
                     released = "2013-09-12",
                     thumbnail = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600",
-                    overview = "The grand battle between llama and roadside obstacles continues with hilarious physics."
+                    overview = "The grand battle between llama and roadside obstacles continues with hilarious physics.",
+                    seasonTitle = "Season 1: Patagonian Escapades"
                 ),
                 VideoEpisode(
                     id = "blender_caminandes_series:1:3",
@@ -347,7 +349,38 @@ object BuiltinAddons {
                     episode = 3,
                     released = "2016-01-20",
                     thumbnail = "https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=600",
-                    overview = "In freezing winter Patagonia, Koro meets a rival penguin for the sweetest berry."
+                    overview = "In freezing winter Patagonia, Koro meets a rival penguin for the sweetest berry.",
+                    seasonTitle = "Season 1: Patagonian Escapades"
+                ),
+                VideoEpisode(
+                    id = "blender_caminandes_series:2:1",
+                    title = "Episode 1: High Altitude Trek",
+                    season = 2,
+                    episode = 1,
+                    released = "2017-04-10",
+                    thumbnail = "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=600",
+                    overview = "Koro scales treacherous snowy ridges in search of greener pastures.",
+                    seasonTitle = "Season 2: Andean Heights"
+                ),
+                VideoEpisode(
+                    id = "blender_caminandes_series:2:2",
+                    title = "Episode 2: Blizzard Rush",
+                    season = 2,
+                    episode = 2,
+                    released = "2017-08-14",
+                    thumbnail = "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=600",
+                    overview = "Navigating a sudden mountain snowstorm leads to unpredictable antics with wildlife.",
+                    seasonTitle = "Season 2: Andean Heights"
+                ),
+                VideoEpisode(
+                    id = "blender_caminandes_series:2:3",
+                    title = "Episode 3: The Valley Feast",
+                    season = 2,
+                    episode = 3,
+                    released = "2018-01-05",
+                    thumbnail = "https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=600",
+                    overview = "Reaching the sun-drenched valley yields unexpected rewards and new friends.",
+                    seasonTitle = "Season 2: Andean Heights"
                 )
             )
         } else null

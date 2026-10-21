@@ -272,7 +272,8 @@ class StremioApiClient {
                             season = vidObj.optInt("season", 1),
                             episode = vidObj.optInt("episode", 1),
                             thumbnail = vidObj.optString("thumbnail").takeIf { it.isNotEmpty() },
-                            overview = vidObj.optString("overview").takeIf { it.isNotEmpty() }
+                            overview = vidObj.optString("overview").takeIf { it.isNotEmpty() },
+                            seasonTitle = vidObj.optString("seasonTitle", vidObj.optString("season_title")).takeIf { it.isNotEmpty() }
                         )
                     )
                 }

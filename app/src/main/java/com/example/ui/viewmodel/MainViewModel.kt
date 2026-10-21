@@ -54,6 +54,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val installedAddons: StateFlow<List<AddonManifest>> = addonRepository.installedAddons
     val libraryItems: StateFlow<List<LibraryItem>> = libraryRepository.libraryItems
+    val watchedEpisodes: StateFlow<Set<String>> = libraryRepository.watchedEpisodes
+
+    // Stream Options & Filter
+    private val _streamFilterQuality = MutableStateFlow("all")
+    val streamFilterQuality: StateFlow<String> = _streamFilterQuality.asStateFlow()
+
+    private val _preferredQuality = MutableStateFlow("auto")
+    val preferredQuality: StateFlow<String> = _preferredQuality.asStateFlow()
 
     // Navigation state
     private val _currentTab = MutableStateFlow(AppTab.DISCOVER)
@@ -360,6 +368,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getContinueWatchingPosition(id: String): Long {
         return libraryRepository.getItem(id)?.watchPositionMs ?: 0L
+    }
+
+    // Watched status operations
+    fun isMovieWatched(id: String): Boolean {
+        return libraryRepository.isMovieWatched(id)
+    }
+
+    fun toggleMovieWatched(meta: MetaDetail) {
+        libraryRepository.toggleMovieWatched(meta)
+    }
+
+    fun isEpisodeWatched(episodeId: String): Boolean {
+        return libraryRepository.isEpisodeWatched(episodeId)
+    }
+
+    fun toggleEpisodeWatched(episode: VideoEpisode, meta: MetaDetail) {
+        libraryRepository.toggleEpisodeWatched(episode.id, meta, episode.title)
+    }
+
+    fun markSeasonWatched(episodes: List<VideoEpisode>, isWatched: Boolean, meta: MetaDetail) {
+        libraryRepository.markSeasonWatched(episodes.map { it.id }, isWatched, meta)
+    }
+
+    // Stream options operations
+    fun setStreamFilterQuality(quality: String) {
+        _streamFilterQuality.value = quality
+    }
+
+    fun setPreferredQuality(quality: String) {
+        _preferredQuality.value = quality
+    }
+
+    fun addCustomStream(stream: StreamItem) {
+        _currentStreams.value = listOf(stream) + _currentStreams.value
     }
 
     // Addon operations

@@ -131,7 +131,8 @@ data class VideoEpisode(
     val season: Int = 1,
     val episode: Int = 1,
     val thumbnail: String? = null,
-    val overview: String? = null
+    val overview: String? = null,
+    val seasonTitle: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -176,3 +177,34 @@ enum class WatchStatus(val displayName: String) {
     COMPLETED("Completed"),
     FAVORITE("Favorites")
 }
+
+@JsonClass(generateAdapter = true)
+data class SubtitleItem(
+    val id: String,
+    val url: String? = null,
+    val lang: String,
+    val label: String? = null,
+    @Transient var addonName: String = "OpenSubtitles"
+)
+
+data class SubtitleCue(
+    val startMs: Long,
+    val endMs: Long,
+    val text: String
+)
+
+data class SubtitleSettings(
+    val isEnabled: Boolean = true,
+    val selectedLanguage: String = "eng", // "eng", "spa", "fre", "ger", "jpn"
+    val fontSizeSp: Int = 18,
+    val textColor: String = "white", // "white", "yellow", "cyan", "green"
+    val hasBackgroundBox: Boolean = true,
+    val delayOffsetMs: Long = 0L
+)
+
+data class AudioSettings(
+    val selectedTrack: String = "default", // "default", "stereo", "surround_51", "night_mode"
+    val volumeBoostPercent: Int = 100, // 100, 125, 150, 200
+    val audioDelayMs: Long = 0L
+)
+

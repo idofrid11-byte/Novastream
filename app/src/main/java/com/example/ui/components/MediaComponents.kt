@@ -177,7 +177,7 @@ fun HeroBanner(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(340.dp)
+            .height(420.dp)
             .clickable(onClick = onDetailClick)
             .testTag("hero_banner")
     ) {
@@ -204,8 +204,9 @@ fun HeroBanner(
                 .background(
                     Brush.verticalGradient(
                         0.0f to Color.Transparent,
-                        0.45f to StreamBg.copy(alpha = 0.5f),
-                        0.85f to StreamBg.copy(alpha = 0.95f),
+                        0.35f to Color.Transparent,
+                        0.65f to StreamBg.copy(alpha = 0.65f),
+                        0.88f to StreamBg.copy(alpha = 0.95f),
                         1.0f to StreamBg
                     )
                 )
@@ -451,6 +452,7 @@ fun ContinueWatchingCard(
 fun StreamSourceCard(
     stream: StreamItem,
     onClick: () -> Unit,
+    onOptionsClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -533,6 +535,22 @@ fun StreamSourceCard(
                     tint = StreamCyan,
                     modifier = Modifier.size(20.dp)
                 )
+            }
+
+            // Stream Options button
+            if (onOptionsClick != null) {
+                Spacer(modifier = Modifier.width(4.dp))
+                IconButton(
+                    onClick = onOptionsClick,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Stream Options",
+                        tint = TextSecondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }
