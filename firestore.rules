@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['userId', 'email'])
+        && data.userId is string
+        && data.email is string
+        && (!('displayName' in data) || data.displayName is string)
+        && (!('photoUrl' in data) || data.photoUrl is string)
+        && (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time))
+        && (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidLibraryItem(data) {
+      return data.keys().hasAll(['id', 'userId', 'name', 'type'])
+        && data.id is string
+        && data.userId is string
+        && data.name is string
+        && data.type is string
+        && (!('poster' in data) || data.poster is string)
+        && (!('background' in data) || data.background is string)
+        && (!('releaseInfo' in data) || data.releaseInfo is string)
+        && (!('imdbRating' in data) || data.imdbRating is string)
+        && (!('status' in data) || data.status is string)
+        && (!('watchPositionMs' in data) || data.watchPositionMs is number)
+        && (!('durationMs' in data) || data.durationMs is number)
+        && (!('lastEpisodeId' in data) || data.lastEpisodeId is string)
+        && (!('lastEpisodeTitle' in data) || data.lastEpisodeTitle is string)
+        && (!('lastWatchedTimestamp' in data) || data.lastWatchedTimestamp is number)
+        && (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time))
+        && (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidUserProfile(request.resource.data);
+      allow delete: if isOwner(userId);
+
+      match /library/{itemId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidLibraryItem(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

@@ -2,25 +2,46 @@ package com.example.data.repository
 
 import android.content.Context
 import android.util.Log
+import com.example.R
 import com.example.data.model.LibraryItem
 import com.example.data.model.MetaDetail
-import com.example.data.model.MetaItem
 import com.example.data.model.WatchStatus
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
 import org.json.JSONObject
 
-class LibraryRepository(context: Context) {
+class LibraryRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences("novastream_library_prefs", Context.MODE_PRIVATE)
     private val _libraryItems = MutableStateFlow<List<LibraryItem>>(emptyList())
     val libraryItems: StateFlow<List<LibraryItem>> = _libraryItems.asStateFlow()
 
+    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val TAG = "LibraryRepository"
 
     init {
         loadLibrary()
+        // Listen to auth state to sync with Firestore
+        auth.addAuthStateListener { firebaseAuth ->
+            val user = firebaseAuth.currentUser
+            if (user != null) {
+                syncFromCloud(user.uid)
+            }
+        }
+    }
+
+    private fun getFirestoreDb(): FirebaseFirestore {
+        val dbId = context.getString(R.string.firestore_database_id)
+        return FirebaseFirestore.getInstance(dbId)
     }
 
     private fun loadLibrary() {
@@ -66,8 +87,8 @@ class LibraryRepository(context: Context) {
             Log.e(TAG, "Error loading library", e)
         }
 
-        // If library is empty on first launch, seed with 2 friendly sample items so user immediately sees rich UI
-        if (list.isEmpty()) {
+        // Default friendly initial items on very first install
+        if (list.isEmpty() && !prefs.contains("library_initialized")) {
             list.add(
                 LibraryItem(
                     id = "blender_big_buck_bunny",
@@ -100,6 +121,7 @@ class LibraryRepository(context: Context) {
                     lastWatchedTimestamp = System.currentTimeMillis() - 86400000L
                 )
             )
+            prefs.edit().putBoolean("library_initialized", true).apply()
         }
 
         _libraryItems.value = list
@@ -134,6 +156,112 @@ class LibraryRepository(context: Context) {
         prefs.edit().putString("library_items_json", arr.toString()).apply()
     }
 
+    private fun syncItemToCloud(item: LibraryItem) {
+        val uid = auth.currentUser?.uid ?: return
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val db = getFirestoreDb()
+                val payload = mutableMapOf<String, Any>(
+                    "id" to item.id,
+                    "userId" to uid,
+                    "type" to item.type,
+                    "name" to item.name,
+                    "status" to item.status.name,
+                    "watchPositionMs" to item.watchPositionMs,
+                    "durationMs" to item.durationMs,
+                    "lastWatchedTimestamp" to item.lastWatchedTimestamp,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+                item.poster?.let { payload["poster"] = it }
+                item.background?.let { payload["background"] = it }
+                item.releaseInfo?.let { payload["releaseInfo"] = it }
+                item.imdbRating?.let { payload["imdbRating"] = it }
+                item.lastEpisodeId?.let { payload["lastEpisodeId"] = it }
+                item.lastEpisodeTitle?.let { payload["lastEpisodeTitle"] = it }
+
+                val docRef = db.collection("users").document(uid).collection("library").document(item.id)
+                val snapshot = docRef.get().await()
+                if (!snapshot.exists()) {
+                    payload["createdAt"] = FieldValue.serverTimestamp()
+                }
+
+                docRef.set(payload, SetOptions.merge()).await()
+                Log.d(TAG, "Item ${item.id} synchronized to Firestore")
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to sync item ${item.id} to Firestore: ${e.message}")
+            }
+        }
+    }
+
+    private fun removeItemFromCloud(itemId: String) {
+        val uid = auth.currentUser?.uid ?: return
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val db = getFirestoreDb()
+                db.collection("users").document(uid).collection("library").document(itemId).delete().await()
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to delete item $itemId from Firestore: ${e.message}")
+            }
+        }
+    }
+
+    fun syncFromCloud(uid: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val db = getFirestoreDb()
+                val snapshot = db.collection("users").document(uid).collection("library").get().await()
+                if (!snapshot.isEmpty) {
+                    val cloudItems = mutableListOf<LibraryItem>()
+                    for (doc in snapshot.documents) {
+                        val statusStr = doc.getString("status") ?: WatchStatus.WATCHING.name
+                        val status = try {
+                            WatchStatus.valueOf(statusStr)
+                        } catch (e: Exception) {
+                            WatchStatus.WATCHING
+                        }
+
+                        cloudItems.add(
+                            LibraryItem(
+                                id = doc.getString("id") ?: doc.id,
+                                type = doc.getString("type") ?: "movie",
+                                name = doc.getString("name") ?: "Title",
+                                poster = doc.getString("poster"),
+                                background = doc.getString("background"),
+                                releaseInfo = doc.getString("releaseInfo"),
+                                imdbRating = doc.getString("imdbRating"),
+                                genres = null,
+                                status = status,
+                                watchPositionMs = doc.getLong("watchPositionMs") ?: 0L,
+                                durationMs = doc.getLong("durationMs") ?: 0L,
+                                lastEpisodeId = doc.getString("lastEpisodeId"),
+                                lastEpisodeTitle = doc.getString("lastEpisodeTitle"),
+                                lastWatchedTimestamp = doc.getLong("lastWatchedTimestamp") ?: System.currentTimeMillis()
+                            )
+                        )
+                    }
+
+                    // Merge cloud items with local items
+                    val currentMap = _libraryItems.value.associateBy { it.id }.toMutableMap()
+                    for (ci in cloudItems) {
+                        val existing = currentMap[ci.id]
+                        if (existing == null || ci.lastWatchedTimestamp > existing.lastWatchedTimestamp) {
+                            currentMap[ci.id] = ci
+                        }
+                    }
+                    _libraryItems.value = currentMap.values.toList()
+                    saveLibrary()
+                } else {
+                    // Upload existing local items to cloud
+                    for (localItem in _libraryItems.value) {
+                        syncItemToCloud(localItem)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error syncing library from cloud: ${e.message}")
+            }
+        }
+    }
+
     fun isSaved(id: String): Boolean {
         return _libraryItems.value.any { it.id == id }
     }
@@ -146,23 +274,23 @@ class LibraryRepository(context: Context) {
         val current = _libraryItems.value.toMutableList()
         val index = current.indexOfFirst { it.id == meta.id }
         if (index >= 0) {
-            current.removeAt(index)
+            val removed = current.removeAt(index)
+            removeItemFromCloud(removed.id)
         } else {
-            current.add(
-                0,
-                LibraryItem(
-                    id = meta.id,
-                    type = meta.type,
-                    name = meta.name,
-                    poster = meta.poster,
-                    background = meta.background,
-                    releaseInfo = meta.releaseInfo,
-                    imdbRating = meta.imdbRating,
-                    genres = meta.genres,
-                    status = status,
-                    lastWatchedTimestamp = System.currentTimeMillis()
-                )
+            val newItem = LibraryItem(
+                id = meta.id,
+                type = meta.type,
+                name = meta.name,
+                poster = meta.poster,
+                background = meta.background,
+                releaseInfo = meta.releaseInfo,
+                imdbRating = meta.imdbRating,
+                genres = meta.genres,
+                status = status,
+                lastWatchedTimestamp = System.currentTimeMillis()
             )
+            current.add(0, newItem)
+            syncItemToCloud(newItem)
         }
         _libraryItems.value = current
         saveLibrary()
@@ -172,9 +300,11 @@ class LibraryRepository(context: Context) {
         val current = _libraryItems.value.toMutableList()
         val index = current.indexOfFirst { it.id == id }
         if (index >= 0) {
-            current[index] = current[index].copy(status = status)
+            val updated = current[index].copy(status = status)
+            current[index] = updated
             _libraryItems.value = current
             saveLibrary()
+            syncItemToCloud(updated)
         }
     }
 
@@ -183,6 +313,7 @@ class LibraryRepository(context: Context) {
         if (current.removeAll { it.id == id }) {
             _libraryItems.value = current
             saveLibrary()
+            removeItemFromCloud(id)
         }
     }
 
@@ -200,9 +331,11 @@ class LibraryRepository(context: Context) {
         val isFinished = durationMs > 0 && (positionMs.toFloat() / durationMs.toFloat()) > 0.95f
         val newStatus = if (isFinished) WatchStatus.COMPLETED else WatchStatus.WATCHING
 
+        var itemToSync: LibraryItem? = null
+
         if (index >= 0) {
             val existing = current[index]
-            current[index] = existing.copy(
+            val updated = existing.copy(
                 watchPositionMs = positionMs,
                 durationMs = durationMs,
                 lastEpisodeId = episodeId ?: existing.lastEpisodeId,
@@ -210,28 +343,31 @@ class LibraryRepository(context: Context) {
                 status = if (existing.status == WatchStatus.FAVORITE) WatchStatus.FAVORITE else newStatus,
                 lastWatchedTimestamp = System.currentTimeMillis()
             )
+            current[index] = updated
+            itemToSync = updated
         } else if (metaFallback != null) {
-            current.add(
-                0,
-                LibraryItem(
-                    id = metaFallback.id,
-                    type = metaFallback.type,
-                    name = metaFallback.name,
-                    poster = metaFallback.poster,
-                    background = metaFallback.background,
-                    releaseInfo = metaFallback.releaseInfo,
-                    imdbRating = metaFallback.imdbRating,
-                    genres = metaFallback.genres,
-                    status = newStatus,
-                    watchPositionMs = positionMs,
-                    durationMs = durationMs,
-                    lastEpisodeId = episodeId,
-                    lastEpisodeTitle = episodeTitle,
-                    lastWatchedTimestamp = System.currentTimeMillis()
-                )
+            val newItem = LibraryItem(
+                id = metaFallback.id,
+                type = metaFallback.type,
+                name = metaFallback.name,
+                poster = metaFallback.poster,
+                background = metaFallback.background,
+                releaseInfo = metaFallback.releaseInfo,
+                imdbRating = metaFallback.imdbRating,
+                genres = metaFallback.genres,
+                status = newStatus,
+                watchPositionMs = positionMs,
+                durationMs = durationMs,
+                lastEpisodeId = episodeId,
+                lastEpisodeTitle = episodeTitle,
+                lastWatchedTimestamp = System.currentTimeMillis()
             )
+            current.add(0, newItem)
+            itemToSync = newItem
         }
         _libraryItems.value = current
         saveLibrary()
+
+        itemToSync?.let { syncItemToCloud(it) }
     }
 }

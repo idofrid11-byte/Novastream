@@ -83,7 +83,8 @@ fun MainAppScaffold(viewModel: MainViewModel) {
                         AppTab.DISCOVER to ("Discover" to Icons.Default.Explore),
                         AppTab.SEARCH to ("Search" to Icons.Default.Search),
                         AppTab.LIBRARY to ("Library" to Icons.Default.VideoLibrary),
-                        AppTab.ADDONS to ("Addons" to Icons.Default.Extension)
+                        AppTab.ADDONS to ("Addons" to Icons.Default.Extension),
+                        AppTab.ACCOUNT to ("Account" to Icons.Default.AccountCircle)
                     )
 
                     tabs.forEach { (tab, info) ->
@@ -182,6 +183,10 @@ fun MainAppScaffold(viewModel: MainViewModel) {
 
                         AppTab.ADDONS -> {
                             AddonsScreen(viewModel = viewModel)
+                        }
+
+                        AppTab.ACCOUNT -> {
+                            AccountScreen(viewModel = viewModel)
                         }
                     }
                 }

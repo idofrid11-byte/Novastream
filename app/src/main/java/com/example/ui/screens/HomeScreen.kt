@@ -159,6 +159,32 @@ fun HomeScreen(
                                 modifier = Modifier.size(18.dp)
                             )
                         }
+
+                        // Account / Profile Button
+                        val user by viewModel.currentUser.collectAsState()
+                        IconButton(
+                            onClick = { viewModel.switchTab(AppTab.ACCOUNT) },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(if (user != null) StreamCyan.copy(alpha = 0.2f) else StreamSurfaceVariant)
+                                .testTag("home_account_button")
+                        ) {
+                            if (user?.photoUrl != null) {
+                                coil.compose.AsyncImage(
+                                    model = user!!.photoUrl,
+                                    contentDescription = "Account",
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = if (user != null) Icons.Default.Person else Icons.Default.AccountCircle,
+                                    contentDescription = "Account",
+                                    tint = if (user != null) StreamCyan else TextPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
                 }
 

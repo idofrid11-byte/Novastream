@@ -1,13 +1,16 @@
 package com.example.ui.viewmodel
 
+import android.app.Activity
 import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.api.BuiltinAddons
+import com.example.data.auth.AuthManager
 import com.example.data.model.*
 import com.example.data.repository.AddonRepository
 import com.example.data.repository.LibraryRepository
+import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,7 +24,8 @@ enum class AppTab {
     DISCOVER,
     SEARCH,
     LIBRARY,
-    ADDONS
+    ADDONS,
+    ACCOUNT
 }
 
 sealed class ScreenDestination {
@@ -40,8 +44,13 @@ sealed class ScreenDestination {
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val authManager = AuthManager(application.applicationContext)
     private val addonRepository = AddonRepository(application.applicationContext)
     private val libraryRepository = LibraryRepository(application.applicationContext)
+
+    val currentUser: StateFlow<FirebaseUser?> = authManager.currentUser
+    val authError: StateFlow<String?> = authManager.authError
+    val isAuthLoading: StateFlow<Boolean> = authManager.isLoading
 
     val installedAddons: StateFlow<List<AddonManifest>> = addonRepository.installedAddons
     val libraryItems: StateFlow<List<LibraryItem>> = libraryRepository.libraryItems
@@ -108,11 +117,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _addonMessage = MutableStateFlow<String?>(null)
     val addonMessage: StateFlow<String?> = _addonMessage.asStateFlow()
 
+    // Sync State
+    private val _isSyncingCloud = MutableStateFlow(false)
+    val isSyncingCloud: StateFlow<Boolean> = _isSyncingCloud.asStateFlow()
+
     // Search debounce job
     private var searchJob: Job? = null
 
     init {
         loadHomeCatalogs()
+        authManager.attemptAutoSignIn(viewModelScope)
     }
 
     fun switchTab(tab: AppTab) {
@@ -193,7 +207,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 _catalogSections.value = catalogs
 
-                // Pick a charismatic hero item
                 val firstList = catalogs.values.firstOrNull { it.isNotEmpty() }
                 if (firstList != null && _heroItem.value == null) {
                     _heroItem.value = firstList.firstOrNull { it.background != null } ?: firstList.firstOrNull()
@@ -217,7 +230,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val meta = addonRepository.resolveMeta(id, type)
                 _currentMeta.value = meta
 
-                // If series, automatically check if episode saved or first episode
                 val streamTargetId = if (meta?.type == "series" && !meta.videos.isNullOrEmpty()) {
                     val firstVid = meta.videos.first()
                     firstVid.id
@@ -284,6 +296,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _searchFilterType.value = type
         if (_searchQuery.value.isNotBlank()) {
             setSearchQuery(_searchQuery.value)
+        }
+    }
+
+    // Auth operations
+    fun signInWithGoogle(activity: Activity) {
+        authManager.signInWithGoogle(activity, viewModelScope)
+    }
+
+    fun signOut() {
+        authManager.signOut(viewModelScope)
+    }
+
+    fun clearAuthError() {
+        authManager.clearError()
+    }
+
+    fun syncLibraryWithCloud() {
+        val user = currentUser.value ?: return
+        viewModelScope.launch {
+            _isSyncingCloud.value = true
+            try {
+                libraryRepository.syncFromCloud(user.uid)
+            } finally {
+                _isSyncingCloud.value = false
+            }
         }
     }
 
