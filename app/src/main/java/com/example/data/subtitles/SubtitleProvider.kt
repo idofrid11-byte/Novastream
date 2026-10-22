@@ -7,9 +7,13 @@ object SubtitleProvider {
 
     val AVAILABLE_LANGUAGES = listOf(
         "eng" to "English (Original)",
+        "heb" to "עברית (Hebrew)",
         "spa" to "Español (Spanish)",
         "fre" to "Français (French)",
         "ger" to "Deutsch (German)",
+        "ita" to "Italiano (Italian)",
+        "rus" to "Русский (Russian)",
+        "ara" to "العربية (Arabic)",
         "jpn" to "日本語 (Japanese)",
         "por" to "Português (Portuguese)"
     )
@@ -30,6 +34,7 @@ object SubtitleProvider {
      */
     fun getCues(itemId: String, lang: String): List<SubtitleCue> {
         return when (lang) {
+            "heb" -> getHebrewCues(itemId)
             "spa" -> getSpanishCues(itemId)
             "fre" -> getFrenchCues(itemId)
             "ger" -> getGermanCues(itemId)
@@ -152,5 +157,30 @@ object SubtitleProvider {
             SubtitleCue(9000L, 16000L, "「諦めるな、運命はまだ我々の手にある」"),
             SubtitleCue(17000L, 25000L, "[超高精細サラウンド音響が再生中]")
         )
+    }
+
+    private fun getHebrewCues(itemId: String): List<SubtitleCue> {
+        return when (itemId) {
+            "blender_big_buck_bunny" -> listOf(
+                SubtitleCue(2000L, 6000L, "[ציפורים מצייצות ביער שקט ושטוף שמש]"),
+                SubtitleCue(7000L, 12000L, "[באק באני יוצא מהמחילה שלו ומפהק]"),
+                SubtitleCue(13000L, 18000L, "[באני מבחין בפרפר כחול על גבי תפוח עסיסי]"),
+                SubtitleCue(19000L, 25000L, "[מוזיקה נעימה מתנגנת ברקע]"),
+                SubtitleCue(26000L, 33000L, "[רשרוש בענפי העצים הגבוהים]"),
+                SubtitleCue(34000L, 41000L, "פרנק: 'תסתכלו למטה, חברים! הוא לא חושד בכלום.'"),
+                SubtitleCue(42000L, 48000L, "רינקי: 'להפיל עליו את הבלוטים עכשיו?'"),
+                SubtitleCue(49000L, 56000L, "פרנק: 'חכו לאות שלי... שלוש, שתיים, אחת, עכשיו!'"),
+                SubtitleCue(57000L, 64000L, "[בום! התפוח עף ישר על האף של באני]"),
+                SubtitleCue(65000L, 73000L, "[צחוק צורמני של הסנאים מהצמרת]"),
+                SubtitleCue(74000L, 82000L, "באני: 'מספיק לשחק. עכשיו הגיע זמן לנקום.'"),
+                SubtitleCue(83000L, 95000L, "[באני מתכנן מלכודות בדיוק הנדסי מרשים]"),
+                SubtitleCue(96000L, 110000L, "[מוזיקת מתח קולנועית מתעצמת]")
+            )
+            else -> listOf(
+                SubtitleCue(2000L, 8000L, "[מוזיקה קולנועית סוחפת באיכות גבוהה]"),
+                SubtitleCue(9000L, 16000L, "דמות ראשית: 'ההרפתקה האמיתית רק מתחילה.'"),
+                SubtitleCue(17000L, 25000L, "[כתוביות עבריות מסונכרנות עם נגן Stremio]")
+            )
+        }
     }
 }

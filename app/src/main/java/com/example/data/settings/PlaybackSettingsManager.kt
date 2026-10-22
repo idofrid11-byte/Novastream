@@ -15,14 +15,21 @@ data class PlaybackSettings(
     val defaultSubtitleLang: String = "eng",
     val subtitleFontSize: Int = 18,
     val subtitleStyle: String = "box",
+    val subtitleTextColor: String = "white",
+    val subtitleVerticalPosition: String = "bottom",
     val audioPassthrough: Boolean = false,
+    val audioVolumeBoost: Int = 100,
+    val audioDelayMs: Long = 0L,
+    val audioNightMode: Boolean = false,
+    val audioPreferredLanguage: String = "default",
+    val audioStereoMode: String = "stereo",
     val bufferCacheSeconds: Int = 60,
     val debridProvider: String = "none",
     val debridApiKey: String = ""
 )
 
 class PlaybackSettingsManager(context: Context) {
-    private val prefs = context.getSharedPreferences("wuplay_playback_settings", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences("stremio_playback_settings", Context.MODE_PRIVATE)
 
     private val _settings = MutableStateFlow(loadSettings())
     val settings: StateFlow<PlaybackSettings> = _settings.asStateFlow()
@@ -37,7 +44,14 @@ class PlaybackSettingsManager(context: Context) {
             defaultSubtitleLang = prefs.getString("subtitle_lang", "eng") ?: "eng",
             subtitleFontSize = prefs.getInt("subtitle_font_size", 18),
             subtitleStyle = prefs.getString("subtitle_style", "box") ?: "box",
+            subtitleTextColor = prefs.getString("subtitle_text_color", "white") ?: "white",
+            subtitleVerticalPosition = prefs.getString("subtitle_vertical_pos", "bottom") ?: "bottom",
             audioPassthrough = prefs.getBoolean("audio_passthrough", false),
+            audioVolumeBoost = prefs.getInt("audio_volume_boost", 100),
+            audioDelayMs = prefs.getLong("audio_delay_ms", 0L),
+            audioNightMode = prefs.getBoolean("audio_night_mode", false),
+            audioPreferredLanguage = prefs.getString("audio_pref_lang", "default") ?: "default",
+            audioStereoMode = prefs.getString("audio_stereo_mode", "stereo") ?: "stereo",
             bufferCacheSeconds = prefs.getInt("buffer_cache_sec", 60),
             debridProvider = prefs.getString("debrid_provider", "none") ?: "none",
             debridApiKey = prefs.getString("debrid_api_key", "") ?: ""
@@ -84,9 +98,44 @@ class PlaybackSettingsManager(context: Context) {
         _settings.value = _settings.value.copy(subtitleStyle = style)
     }
 
+    fun setSubtitleTextColor(color: String) {
+        prefs.edit().putString("subtitle_text_color", color).apply()
+        _settings.value = _settings.value.copy(subtitleTextColor = color)
+    }
+
+    fun setSubtitleVerticalPosition(pos: String) {
+        prefs.edit().putString("subtitle_vertical_pos", pos).apply()
+        _settings.value = _settings.value.copy(subtitleVerticalPosition = pos)
+    }
+
     fun setAudioPassthrough(enabled: Boolean) {
         prefs.edit().putBoolean("audio_passthrough", enabled).apply()
         _settings.value = _settings.value.copy(audioPassthrough = enabled)
+    }
+
+    fun setAudioVolumeBoost(boost: Int) {
+        prefs.edit().putInt("audio_volume_boost", boost).apply()
+        _settings.value = _settings.value.copy(audioVolumeBoost = boost)
+    }
+
+    fun setAudioDelayMs(delayMs: Long) {
+        prefs.edit().putLong("audio_delay_ms", delayMs).apply()
+        _settings.value = _settings.value.copy(audioDelayMs = delayMs)
+    }
+
+    fun setAudioNightMode(enabled: Boolean) {
+        prefs.edit().putBoolean("audio_night_mode", enabled).apply()
+        _settings.value = _settings.value.copy(audioNightMode = enabled)
+    }
+
+    fun setAudioPreferredLanguage(lang: String) {
+        prefs.edit().putString("audio_pref_lang", lang).apply()
+        _settings.value = _settings.value.copy(audioPreferredLanguage = lang)
+    }
+
+    fun setAudioStereoMode(mode: String) {
+        prefs.edit().putString("audio_stereo_mode", mode).apply()
+        _settings.value = _settings.value.copy(audioStereoMode = mode)
     }
 
     fun setBufferCacheSeconds(seconds: Int) {

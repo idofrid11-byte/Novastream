@@ -502,8 +502,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         playbackSettingsManager.setSubtitleStyle(style)
     }
 
+    fun setSubtitleTextColor(color: String) {
+        playbackSettingsManager.setSubtitleTextColor(color)
+    }
+
+    fun setSubtitleVerticalPosition(pos: String) {
+        playbackSettingsManager.setSubtitleVerticalPosition(pos)
+    }
+
     fun setAudioPassthrough(enabled: Boolean) {
         playbackSettingsManager.setAudioPassthrough(enabled)
+    }
+
+    fun setAudioVolumeBoost(boost: Int) {
+        playbackSettingsManager.setAudioVolumeBoost(boost)
+    }
+
+    fun setAudioDelayMs(delayMs: Long) {
+        playbackSettingsManager.setAudioDelayMs(delayMs)
+    }
+
+    fun setAudioNightMode(enabled: Boolean) {
+        playbackSettingsManager.setAudioNightMode(enabled)
+    }
+
+    fun setAudioPreferredLanguage(lang: String) {
+        playbackSettingsManager.setAudioPreferredLanguage(lang)
+    }
+
+    fun setAudioStereoMode(mode: String) {
+        playbackSettingsManager.setAudioStereoMode(mode)
     }
 
     fun setBufferCacheSeconds(seconds: Int) {

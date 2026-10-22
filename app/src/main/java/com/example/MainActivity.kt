@@ -55,6 +55,22 @@ class MainActivity : ComponentActivity() {
             viewModel.switchTab(AppTab.SETTINGS)
         }
     }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (viewModel.screenDestination.value is ScreenDestination.Player) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                try {
+                    val params = android.app.PictureInPictureParams.Builder()
+                        .setAspectRatio(android.util.Rational(16, 9))
+                        .build()
+                    enterPictureInPictureMode(params)
+                } catch (e: Exception) {
+                    // Ignored on hardware without PiP
+                }
+            }
+        }
+    }
 }
 
 @Composable

@@ -54,9 +54,17 @@ object ExoPlayerHelper {
             setEnableDecoderFallback(true)
         }
 
+        val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
+            .setUsage(androidx.media3.common.C.USAGE_MEDIA)
+            .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MOVIE)
+            .build()
+
         return ExoPlayer.Builder(context.applicationContext)
             .setRenderersFactory(renderersFactory)
             .setLoadControl(loadControl)
+            .setAudioAttributes(audioAttributes, true)
+            .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(androidx.media3.common.C.WAKE_MODE_NETWORK)
             .setSeekForwardIncrementMs(10000L)
             .setSeekBackIncrementMs(10000L)
             .build().apply {
