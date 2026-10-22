@@ -6,26 +6,30 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.api.BuiltinAddons
+import com.example.data.api.StreamingServicesData
 import com.example.data.auth.AuthManager
 import com.example.data.model.*
 import com.example.data.repository.AddonRepository
 import com.example.data.repository.LibraryRepository
+import com.example.data.settings.PlaybackSettings
+import com.example.data.settings.PlaybackSettingsManager
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 enum class AppTab {
     DISCOVER,
+    STREAMING,
     SEARCH,
-    LIBRARY,
-    ADDONS,
-    ACCOUNT
+    WATCHLIST,
+    SETTINGS,
+    LIBRARY, // Backward compatibility alias
+    ADDONS,  // Backward compatibility alias
+    ACCOUNT  // Backward compatibility alias
 }
 
 sealed class ScreenDestination {
@@ -47,6 +51,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val authManager = AuthManager(application.applicationContext)
     private val addonRepository = AddonRepository(application.applicationContext)
     private val libraryRepository = LibraryRepository(application.applicationContext)
+    private val playbackSettingsManager = PlaybackSettingsManager(application.applicationContext)
 
     val currentUser: StateFlow<FirebaseUser?> = authManager.currentUser
     val authError: StateFlow<String?> = authManager.authError
@@ -56,12 +61,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val libraryItems: StateFlow<List<LibraryItem>> = libraryRepository.libraryItems
     val watchedEpisodes: StateFlow<Set<String>> = libraryRepository.watchedEpisodes
 
-    // Stream Options & Filter
-    private val _streamFilterQuality = MutableStateFlow("all")
-    val streamFilterQuality: StateFlow<String> = _streamFilterQuality.asStateFlow()
-
-    private val _preferredQuality = MutableStateFlow("auto")
-    val preferredQuality: StateFlow<String> = _preferredQuality.asStateFlow()
+    // Playback Settings
+    val playbackSettings: StateFlow<PlaybackSettings> = playbackSettingsManager.settings
 
     // Navigation state
     private val _currentTab = MutableStateFlow(AppTab.DISCOVER)
@@ -85,6 +86,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isLoadingHome = MutableStateFlow(false)
     val isLoadingHome: StateFlow<Boolean> = _isLoadingHome.asStateFlow()
+
+    // Streaming Services Tab State
+    private val _selectedStreamingProvider = MutableStateFlow("netflix")
+    val selectedStreamingProvider: StateFlow<String> = _selectedStreamingProvider.asStateFlow()
+
+    private val _streamingCatalogItems = MutableStateFlow<List<MetaItem>>(StreamingServicesData.getItemsForProvider("netflix"))
+    val streamingCatalogItems: StateFlow<List<MetaItem>> = _streamingCatalogItems.asStateFlow()
 
     // Search State
     private val _searchQuery = MutableStateFlow("")
@@ -112,8 +120,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoadingDetail = MutableStateFlow(false)
     val isLoadingDetail: StateFlow<Boolean> = _isLoadingDetail.asStateFlow()
 
-    private val _isLoadingStreams = MutableStateFlow(false)
-    val isLoadingStreams: StateFlow<Boolean> = _isLoadingStreams.asStateFlow()
+    private val _isDirectPlaying = MutableStateFlow(false)
+    val isDirectPlaying: StateFlow<Boolean> = _isDirectPlaying.asStateFlow()
 
     // Addons State
     private val _installUrl = MutableStateFlow("")
@@ -138,10 +146,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun switchTab(tab: AppTab) {
-        _currentTab.value = tab
+        // Map backward compatibility aliases
+        val targetTab = when (tab) {
+            AppTab.LIBRARY -> AppTab.WATCHLIST
+            AppTab.ACCOUNT, AppTab.ADDONS -> AppTab.SETTINGS
+            else -> tab
+        }
+        _currentTab.value = targetTab
         if (_screenDestination.value !is ScreenDestination.Tabs) {
             _screenDestination.value = ScreenDestination.Tabs
         }
+    }
+
+    fun selectStreamingProvider(providerId: String) {
+        _selectedStreamingProvider.value = providerId
+        _streamingCatalogItems.value = addonRepository.loadStreamingCatalog(providerId)
     }
 
     fun navigateToDetail(id: String, type: String) {
@@ -167,6 +186,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             meta = meta,
             episode = episode
         )
+    }
+
+    /**
+     * WuPlay Direct Play: Resolves the best stream automatically in the background
+     * and jumps immediately to PlayerScreen without prompting for stream selection.
+     */
+    fun playDirect(meta: MetaDetail, episode: VideoEpisode? = null) {
+        viewModelScope.launch {
+            _isDirectPlaying.value = true
+            try {
+                val targetId = episode?.id ?: meta.id
+                val streams = addonRepository.resolveStreams(targetId, meta.type)
+                val bestStream = streams.firstOrNull { it.quality?.contains("1080", ignoreCase = true) == true }
+                    ?: streams.firstOrNull { it.quality?.contains("4K", ignoreCase = true) == true }
+                    ?: streams.firstOrNull()
+                    ?: StreamItem(
+                        title = "WuPlay Direct Fast Stream",
+                        name = "WuPlay Fast Stream Engine",
+                        url = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+                        quality = "1080p",
+                        addonName = "WuPlay Core"
+                    )
+
+                val resumePos = getContinueWatchingPosition(meta.id)
+                val subtitle = episode?.let { "S${it.season}:E${it.episode} • ${it.title}" } ?: meta.releaseInfo
+
+                navigateToPlayer(
+                    stream = bestStream,
+                    title = meta.name,
+                    subtitle = subtitle,
+                    itemId = meta.id,
+                    startPositionMs = resumePos,
+                    meta = meta,
+                    episode = episode
+                )
+            } catch (e: Exception) {
+                Log.e("MainViewModel", "Error initiating direct play", e)
+            } finally {
+                _isDirectPlaying.value = false
+            }
+        }
     }
 
     fun navigateBack(): Boolean {
@@ -245,7 +305,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     id
                 }
 
-                loadStreamsForTarget(streamTargetId, type)
+                // Pre-resolve streams in background so play is instant
+                val streams = addonRepository.resolveStreams(streamTargetId, type)
+                _currentStreams.value = streams
             } catch (e: Exception) {
                 Log.e("MainViewModel", "Error loading detail", e)
             } finally {
@@ -254,27 +316,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun selectEpisode(episode: VideoEpisode) {
-        val meta = _currentMeta.value ?: return
-        loadStreamsForTarget(episode.id, meta.type)
-    }
-
     fun selectSeason(season: Int) {
         _selectedSeason.value = season
-    }
-
-    fun loadStreamsForTarget(targetId: String, type: String) {
-        viewModelScope.launch {
-            _isLoadingStreams.value = true
-            try {
-                val streams = addonRepository.resolveStreams(targetId, type)
-                _currentStreams.value = streams
-            } catch (e: Exception) {
-                Log.e("MainViewModel", "Error resolving streams", e)
-            } finally {
-                _isLoadingStreams.value = false
-            }
-        }
     }
 
     fun setSearchQuery(query: String) {
@@ -391,17 +434,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         libraryRepository.markSeasonWatched(episodes.map { it.id }, isWatched, meta)
     }
 
-    // Stream options operations
-    fun setStreamFilterQuality(quality: String) {
-        _streamFilterQuality.value = quality
+    // Playback Settings Operations
+    fun updatePlaybackSpeed(speed: Float) {
+        playbackSettingsManager.updatePlaybackSpeed(speed)
     }
 
-    fun setPreferredQuality(quality: String) {
-        _preferredQuality.value = quality
+    fun setAutoPlayNextEpisode(enabled: Boolean) {
+        playbackSettingsManager.setAutoPlayNextEpisode(enabled)
     }
 
-    fun addCustomStream(stream: StreamItem) {
-        _currentStreams.value = listOf(stream) + _currentStreams.value
+    fun setAutoSkipIntro(enabled: Boolean) {
+        playbackSettingsManager.setAutoSkipIntro(enabled)
+    }
+
+    fun setHardwareAcceleration(enabled: Boolean) {
+        playbackSettingsManager.setHardwareAcceleration(enabled)
+    }
+
+    fun setResizeMode(mode: Int) {
+        playbackSettingsManager.setResizeMode(mode)
+    }
+
+    fun setDefaultSubtitleLang(lang: String) {
+        playbackSettingsManager.setDefaultSubtitleLang(lang)
+    }
+
+    fun setSubtitleFontSize(sizeSp: Int) {
+        playbackSettingsManager.setSubtitleFontSize(sizeSp)
+    }
+
+    fun setSubtitleStyle(style: String) {
+        playbackSettingsManager.setSubtitleStyle(style)
+    }
+
+    fun setAudioPassthrough(enabled: Boolean) {
+        playbackSettingsManager.setAudioPassthrough(enabled)
+    }
+
+    fun setBufferCacheSeconds(seconds: Int) {
+        playbackSettingsManager.setBufferCacheSeconds(seconds)
+    }
+
+    fun resetPlaybackSettings() {
+        playbackSettingsManager.resetToDefaults()
     }
 
     // Addon operations

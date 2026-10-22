@@ -11,12 +11,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.screens.*
@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
         val data = intent?.data ?: return
         if (data.scheme.equals("stremio", ignoreCase = true) || data.path?.endsWith("manifest.json") == true) {
             viewModel.installAddon(data.toString())
-            viewModel.switchTab(AppTab.ADDONS)
+            viewModel.switchTab(AppTab.SETTINGS)
         }
     }
 }
@@ -80,16 +80,19 @@ fun MainAppScaffold(viewModel: MainViewModel) {
                     modifier = Modifier.testTag("main_bottom_nav")
                 ) {
                     val tabs = listOf(
-                        AppTab.DISCOVER to ("Discover" to Icons.Default.Explore),
+                        AppTab.DISCOVER to ("Home" to Icons.Default.Explore),
+                        AppTab.STREAMING to ("Networks" to Icons.Default.Tv),
                         AppTab.SEARCH to ("Search" to Icons.Default.Search),
-                        AppTab.LIBRARY to ("Library" to Icons.Default.VideoLibrary),
-                        AppTab.ADDONS to ("Addons" to Icons.Default.Extension),
-                        AppTab.ACCOUNT to ("Account" to Icons.Default.AccountCircle)
+                        AppTab.WATCHLIST to ("Watchlist" to Icons.Default.Bookmark),
+                        AppTab.SETTINGS to ("Settings" to Icons.Default.Settings)
                     )
 
                     tabs.forEach { (tab, info) ->
                         val (label, icon) = info
-                        val isSelected = currentTab == tab && screenDestination is ScreenDestination.Tabs
+                        val isSelected = (currentTab == tab ||
+                                (tab == AppTab.WATCHLIST && currentTab == AppTab.LIBRARY) ||
+                                (tab == AppTab.SETTINGS && (currentTab == AppTab.ACCOUNT || currentTab == AppTab.ADDONS)))
+                                && screenDestination is ScreenDestination.Tabs
 
                         NavigationBarItem(
                             selected = isSelected,
@@ -104,13 +107,14 @@ fun MainAppScaffold(viewModel: MainViewModel) {
                             label = {
                                 Text(
                                     text = label,
-                                    fontSize = 11.sp
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color.Black,
-                                selectedTextColor = StreamCyan,
-                                indicatorColor = StreamCyan,
+                                selectedIconColor = Color.White,
+                                selectedTextColor = WuPlayCyan,
+                                indicatorColor = WuPlayPurple,
                                 unselectedIconColor = TextSecondary,
                                 unselectedTextColor = TextSecondary
                             ),
@@ -163,6 +167,15 @@ fun MainAppScaffold(viewModel: MainViewModel) {
                             )
                         }
 
+                        AppTab.STREAMING -> {
+                            StreamingServicesScreen(
+                                viewModel = viewModel,
+                                onNavigateToDetail = { id, type ->
+                                    viewModel.navigateToDetail(id, type)
+                                }
+                            )
+                        }
+
                         AppTab.SEARCH -> {
                             SearchScreen(
                                 viewModel = viewModel,
@@ -172,8 +185,8 @@ fun MainAppScaffold(viewModel: MainViewModel) {
                             )
                         }
 
-                        AppTab.LIBRARY -> {
-                            LibraryScreen(
+                        AppTab.WATCHLIST, AppTab.LIBRARY -> {
+                            WatchlistScreen(
                                 viewModel = viewModel,
                                 onNavigateToDetail = { id, type ->
                                     viewModel.navigateToDetail(id, type)
@@ -181,12 +194,8 @@ fun MainAppScaffold(viewModel: MainViewModel) {
                             )
                         }
 
-                        AppTab.ADDONS -> {
-                            AddonsScreen(viewModel = viewModel)
-                        }
-
-                        AppTab.ACCOUNT -> {
-                            AccountScreen(viewModel = viewModel)
+                        AppTab.SETTINGS, AppTab.ACCOUNT, AppTab.ADDONS -> {
+                            SettingsScreen(viewModel = viewModel)
                         }
                     }
                 }

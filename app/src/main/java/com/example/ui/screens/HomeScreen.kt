@@ -17,12 +17,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.MetaItem
+import com.example.data.model.StreamingProviders
 import com.example.ui.components.ContinueWatchingCard
 import com.example.ui.components.HeroBanner
 import com.example.ui.components.MediaPosterCard
@@ -42,18 +44,14 @@ fun HomeScreen(
     val selectedType by viewModel.selectedMediaType.collectAsState()
     val selectedGenre by viewModel.selectedGenre.collectAsState()
     val libraryItems by viewModel.libraryItems.collectAsState()
-    val installedAddons by viewModel.installedAddons.collectAsState()
 
     val continueWatchingItems = remember(libraryItems) {
         libraryItems.filter { it.watchPositionMs > 0 && it.progressFraction < 0.95f }
             .sortedByDescending { it.lastWatchedTimestamp }
     }
 
-    val activeAddonsCount = remember(installedAddons) {
-        installedAddons.count { it.isEnabled }
-    }
-
-    val genresList = listOf("All", "Animation", "Sci-Fi", "Comedy", "Classic", "Drama", "Horror", "Space")
+    val streamingProviders = StreamingProviders.ALL_PROVIDERS
+    val genresList = listOf("All", "Animation", "Sci-Fi", "Comedy", "Classic", "Drama", "Horror", "Action")
 
     Scaffold(
         topBar = {
@@ -63,7 +61,7 @@ fun HomeScreen(
                     .background(StreamSurface)
                     .statusBarsPadding()
             ) {
-                // Main Header Row
+                // Main Header Row with WuPlay Branding
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -75,17 +73,22 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.testTag("app_brand")
                     ) {
+                        // Futuristic WuPlay W Emblem with glowing gradient
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(StreamCyan),
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(WuPlayPurple, WuPlayCyan)
+                                    )
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.PlayArrow,
                                 contentDescription = null,
-                                tint = Color.Black,
+                                tint = Color.White,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -93,123 +96,80 @@ fun HomeScreen(
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "Nova",
+                                    text = "Wu",
                                     color = Color.White,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Black
                                 )
                                 Text(
-                                    text = "Stream",
-                                    color = StreamCyan,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
+                                    text = "Play",
+                                    color = WuPlayCyan,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Black
                                 )
                             }
                             Text(
-                                text = "Addon Media Aggregator",
+                                text = "Cinematic Media Hub",
                                 color = TextMuted,
                                 fontSize = 10.sp
                             )
                         }
                     }
 
-                    // Addons Active Pill & Search Shortcut
+                    // Search & Settings Shortcuts
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Surface(
-                            onClick = { viewModel.switchTab(AppTab.ADDONS) },
-                            shape = RoundedCornerShape(20.dp),
-                            color = StreamSurfaceVariant,
-                            modifier = Modifier.testTag("active_addons_pill")
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(7.dp)
-                                        .clip(CircleShape)
-                                        .background(StreamGreen)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "$activeAddonsCount Addons",
-                                    color = TextSecondary,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-
                         IconButton(
                             onClick = { viewModel.switchTab(AppTab.SEARCH) },
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
                                 .background(StreamSurfaceVariant)
-                                .testTag("home_search_button")
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Search,
                                 contentDescription = "Search",
-                                tint = TextPrimary,
-                                modifier = Modifier.size(18.dp)
+                                tint = WuPlayCyan,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
 
-                        // Account / Profile Button
-                        val user by viewModel.currentUser.collectAsState()
                         IconButton(
-                            onClick = { viewModel.switchTab(AppTab.ACCOUNT) },
+                            onClick = { viewModel.switchTab(AppTab.SETTINGS) },
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(if (user != null) StreamCyan.copy(alpha = 0.2f) else StreamSurfaceVariant)
-                                .testTag("home_account_button")
+                                .background(StreamSurfaceVariant)
                         ) {
-                            if (user?.photoUrl != null) {
-                                coil.compose.AsyncImage(
-                                    model = user!!.photoUrl,
-                                    contentDescription = "Account",
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = if (user != null) Icons.Default.Person else Icons.Default.AccountCircle,
-                                    contentDescription = "Account",
-                                    tint = if (user != null) StreamCyan else TextPrimary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
                     }
                 }
 
-                // Media Type Filter Row
+                // Media Type Filter (All, Movies, Series)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val types = listOf(
-                        "all" to "Discover All",
-                        "movie" to "Movies",
-                        "series" to "Series",
-                        "channel" to "Live & Space"
-                    )
-                    types.forEach { (key, label) ->
-                        val isSelected = selectedType == key
+                    val types = listOf("all" to "Featured", "movie" to "Movies", "series" to "TV Series")
+                    types.forEach { (typeKey, label) ->
+                        val isSelected = selectedType == typeKey
                         FilterChip(
                             selected = isSelected,
-                            onClick = { viewModel.setMediaTypeFilter(key) },
+                            onClick = { viewModel.setMediaTypeFilter(typeKey) },
                             label = { Text(label, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = StreamCyan,
-                                selectedLabelColor = Color.Black,
+                                selectedContainerColor = WuPlayPurple,
+                                selectedLabelColor = Color.White,
                                 containerColor = StreamSurfaceVariant,
                                 labelColor = TextSecondary
                             ),
@@ -217,83 +177,187 @@ fun HomeScreen(
                                 enabled = true,
                                 selected = isSelected,
                                 borderColor = StreamBorder,
-                                selectedBorderColor = StreamCyan
+                                selectedBorderColor = WuPlayPurple
                             ),
-                            modifier = Modifier.testTag("type_filter_$key")
+                            modifier = Modifier.testTag("filter_type_$typeKey")
                         )
                     }
                 }
 
-                // Genre Pills
+                // Genre Chips Row
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     genresList.forEach { g ->
                         val isAll = g == "All"
-                        val isSelected = if (isAll) selectedGenre == null else selectedGenre == g
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(if (isSelected) StreamPurple.copy(alpha = 0.25f) else Color.Transparent)
-                                .clickable {
-                                    viewModel.setGenreFilter(if (isAll) null else g)
-                                }
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = g,
-                                color = if (isSelected) StreamPurple else TextSecondary,
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        val isSelected = (isAll && selectedGenre == null) || (selectedGenre == g)
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { viewModel.setGenreFilter(if (isAll) null else g) },
+                            label = { Text(g, fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = StreamSurfaceVariant,
+                                selectedLabelColor = WuPlayCyan,
+                                containerColor = StreamBg,
+                                labelColor = TextMuted
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = isSelected,
+                                borderColor = StreamBorder,
+                                selectedBorderColor = WuPlayCyan
                             )
-                        }
+                        )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(4.dp))
             }
         },
         containerColor = StreamBg,
-        modifier = modifier
+        modifier = modifier.testTag("home_screen")
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .testTag("home_catalog_list")
         ) {
-            // Hero Banner
+            // 1. HERO BANNER
             if (heroItem != null) {
                 item {
-                    val hero = heroItem!!
-                    val isSaved = viewModel.isSavedInLibrary(hero.id)
+                    val isHeroSaved = libraryItems.any { it.id == heroItem!!.id }
                     HeroBanner(
-                        item = hero,
+                        item = heroItem!!,
                         onPlayClick = {
-                            onNavigateToDetail(hero.id, hero.type)
+                            onNavigateToDetail(heroItem!!.id, heroItem!!.type)
                         },
                         onDetailClick = {
-                            onNavigateToDetail(hero.id, hero.type)
+                            onNavigateToDetail(heroItem!!.id, heroItem!!.type)
                         },
                         onToggleLibrary = {
-                            // Fetch or toggle
-                            onNavigateToDetail(hero.id, hero.type)
+                            // Quick toggle watchlist for hero
+                            viewModel.navigateToDetail(heroItem!!.id, heroItem!!.type)
                         },
-                        isSaved = isSaved
+                        isSaved = isHeroSaved
                     )
                 }
             }
 
-            // Continue Watching Shelf
+            // 2. STREAMING SERVICES CATALOG ROW (Netflix, Apple TV+, Disney+, Max, Prime, Paramount+, Hulu)
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Tv,
+                                contentDescription = null,
+                                tint = WuPlayCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Streaming Services",
+                                color = Color.White,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        TextButton(
+                            onClick = { viewModel.switchTab(AppTab.STREAMING) },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text("View All", color = WuPlayCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = WuPlayCyan, modifier = Modifier.size(16.dp))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(streamingProviders) { provider ->
+                            val brandColor = Color(provider.colorHex)
+                            Card(
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = StreamCard),
+                                border = CardDefaults.outlinedCardBorder().copy(
+                                    brush = Brush.horizontalGradient(
+                                        listOf(brandColor.copy(alpha = 0.8f), Color(provider.secondaryColorHex).copy(alpha = 0.6f))
+                                    )
+                                ),
+                                modifier = Modifier
+                                    .width(135.dp)
+                                    .height(72.dp)
+                                    .clickable {
+                                        viewModel.selectStreamingProvider(provider.id)
+                                        viewModel.switchTab(AppTab.STREAMING)
+                                    }
+                                    .testTag("home_service_${provider.id}")
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Surface(
+                                            color = brandColor,
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = provider.logoText,
+                                                color = Color.White,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Black,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = provider.name,
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. CONTINUE WATCHING CAROUSEL
             if (continueWatchingItems.isNotEmpty()) {
                 item {
-                    Column(modifier = Modifier.padding(top = 16.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 10.dp)
+                    ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                                .padding(horizontal = 16.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -301,34 +365,34 @@ fun HomeScreen(
                                 Icon(
                                     imageVector = Icons.Default.PlayCircle,
                                     contentDescription = null,
-                                    tint = StreamCyan,
+                                    tint = WuPlayCyan,
                                     modifier = Modifier.size(18.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "Continue Watching",
                                     color = Color.White,
-                                    fontSize = 16.sp,
+                                    fontSize = 17.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
                             Text(
-                                text = "${continueWatchingItems.size} items",
+                                text = "${continueWatchingItems.size} in progress",
                                 color = TextMuted,
                                 fontSize = 12.sp
                             )
                         }
 
+                        Spacer(modifier = Modifier.height(10.dp))
+
                         LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(continueWatchingItems, key = { it.id }) { libItem ->
+                            items(continueWatchingItems) { item ->
                                 ContinueWatchingCard(
-                                    item = libItem,
-                                    onClick = {
-                                        onNavigateToDetail(libItem.id, libItem.type)
-                                    }
+                                    item = item,
+                                    onClick = { onNavigateToDetail(item.id, item.type) }
                                 )
                             }
                         }
@@ -336,7 +400,7 @@ fun HomeScreen(
                 }
             }
 
-            // Loading Indicator
+            // 4. LOADING STATE OR CATALOG SECTIONS
             if (isLoading && catalogSections.isEmpty()) {
                 item {
                     Box(
@@ -345,47 +409,55 @@ fun HomeScreen(
                             .height(200.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(color = StreamCyan)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = WuPlayPurple)
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text("Loading WuPlay catalogs...", color = TextSecondary, fontSize = 12.sp)
+                        }
                     }
                 }
-            }
-
-            // Catalog Rows
-            catalogSections.forEach { (sectionTitle, items) ->
-                if (items.isNotEmpty()) {
-                    item {
-                        Column(modifier = Modifier.padding(top = 18.dp)) {
-                            Row(
+            } else {
+                // Render each catalog section horizontally
+                catalogSections.forEach { (sectionTitle, items) ->
+                    if (items.isNotEmpty()) {
+                        item {
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(vertical = 12.dp)
                             ) {
-                                Text(
-                                    text = sectionTitle,
-                                    color = Color.White,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "${items.size} titles",
-                                    color = TextMuted,
-                                    fontSize = 11.sp
-                                )
-                            }
-
-                            LazyRow(
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                items(items, key = { it.id }) { item ->
-                                    MediaPosterCard(
-                                        item = item,
-                                        onClick = {
-                                            onNavigateToDetail(item.id, item.type)
-                                        }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = sectionTitle,
+                                        color = Color.White,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Bold
                                     )
+                                    Text(
+                                        text = "${items.size} titles",
+                                        color = TextMuted,
+                                        fontSize = 12.sp
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                LazyRow(
+                                    contentPadding = PaddingValues(horizontal = 16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    items(items) { mediaItem ->
+                                        MediaPosterCard(
+                                            item = mediaItem,
+                                            onClick = { onNavigateToDetail(mediaItem.id, mediaItem.type) }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -393,9 +465,8 @@ fun HomeScreen(
                 }
             }
 
-            // Bottom Spacing
             item {
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(30.dp))
             }
         }
     }

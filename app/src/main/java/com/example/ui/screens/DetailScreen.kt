@@ -1,18 +1,11 @@
 package com.example.ui.screens
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -28,7 +21,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -37,10 +29,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.MetaDetail
-import com.example.data.model.StreamItem
 import com.example.data.model.VideoEpisode
 import com.example.data.model.WatchStatus
-import com.example.ui.components.StreamSourceCard
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MainViewModel
 
@@ -52,11 +42,9 @@ fun DetailScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val meta by viewModel.currentMeta.collectAsState()
-    val streams by viewModel.currentStreams.collectAsState()
     val isLoadingMeta by viewModel.isLoadingDetail.collectAsState()
-    val isLoadingStreams by viewModel.isLoadingStreams.collectAsState()
+    val isDirectPlaying by viewModel.isDirectPlaying.collectAsState()
     val selectedSeason by viewModel.selectedSeason.collectAsState()
     val libraryItems by viewModel.libraryItems.collectAsState()
     val watchedEpisodes by viewModel.watchedEpisodes.collectAsState()
@@ -69,15 +57,14 @@ fun DetailScreen(
         viewModel.isMovieWatched(id)
     }
 
+    val resumePositionMs = remember(libraryItems, id) {
+        viewModel.getContinueWatchingPosition(id)
+    }
+
     var selectedEpisode by remember { mutableStateOf<VideoEpisode?>(null) }
     var isDescriptionExpanded by remember { mutableStateOf(false) }
 
-    // Stream options & filtering
-    var selectedQualityFilter by remember { mutableStateOf("All") }
-    var streamForOptionsDialog by remember { mutableStateOf<StreamItem?>(null) }
-    var showCustomStreamDialog by remember { mutableStateOf(false) }
-
-    // Update selectedEpisode when meta loads
+    // Auto-select initial episode for series
     LaunchedEffect(meta) {
         if (meta?.type == "series" && !meta?.videos.isNullOrEmpty()) {
             selectedEpisode = meta!!.videos!!.first()
@@ -95,7 +82,11 @@ fun DetailScreen(
                     .padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = StreamCyan)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = WuPlayPurple, strokeWidth = 3.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("Loading WuPlay Title...", color = TextSecondary, fontSize = 13.sp)
+                }
             }
         } else if (meta == null) {
             Box(
@@ -105,11 +96,13 @@ fun DetailScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Could not load title details", color = TextSecondary)
+                    Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = StreamCoral, modifier = Modifier.size(40.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text("Could not load title details", color = TextSecondary, fontSize = 14.sp)
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(
                         onClick = onBack,
-                        colors = ButtonDefaults.buttonColors(containerColor = StreamCyan, contentColor = Color.Black)
+                        colors = ButtonDefaults.buttonColors(containerColor = WuPlayPurple, contentColor = Color.White)
                     ) {
                         Text("Go Back")
                     }
@@ -129,27 +122,14 @@ fun DetailScreen(
                 mutableIntStateOf(if (selectedSeason in seasonNumbers) selectedSeason else (seasonNumbers.firstOrNull() ?: 1))
             }
             val currentSeasonEpisodes = episodesBySeason[activeSeasonNum] ?: emptyList()
-
-            // Filter streams by quality
-            val filteredStreams = remember(streams, selectedQualityFilter) {
-                if (selectedQualityFilter == "All") streams else {
-                    streams.filter { s ->
-                        when (selectedQualityFilter) {
-                            "4K UHD" -> s.quality?.contains("4K", ignoreCase = true) == true
-                            "1080p" -> s.quality?.contains("1080", ignoreCase = true) == true
-                            "720p" -> s.quality?.contains("720", ignoreCase = true) == true
-                            else -> true
-                        }
-                    }
-                }
-            }
+            val currentSeasonTitle = currentSeasonEpisodes.firstOrNull()?.seasonTitle ?: "Season $activeSeasonNum"
 
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(bottom = innerPadding.calculateBottomPadding())
             ) {
-                // 1. EXPANDED LARGE BACKDROP with Multi-Stop Gradient Scrim (480dp tall)
+                // 1. EXPANDED LARGE BACKDROP with Multi-Stop Cinematic Gradient
                 item {
                     Box(
                         modifier = Modifier
@@ -158,6 +138,7 @@ fun DetailScreen(
                             .testTag("detail_backdrop_box")
                     ) {
                         val backdropUrl = item.background ?: item.poster
+
                         if (!backdropUrl.isNullOrEmpty()) {
                             AsyncImage(
                                 model = backdropUrl,
@@ -182,7 +163,7 @@ fun DetailScreen(
                                         0.0f to Color.Black.copy(alpha = 0.70f),
                                         0.20f to Color.Transparent,
                                         0.50f to Color.Transparent,
-                                        0.72f to StreamBg.copy(alpha = 0.65f),
+                                        0.70f to StreamBg.copy(alpha = 0.75f),
                                         0.88f to StreamBg.copy(alpha = 0.95f),
                                         1.0f to StreamBg
                                     )
@@ -217,7 +198,7 @@ fun DetailScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // Watched quick toggle on backdrop for movies
+                                // Watched toggle for movies
                                 if (item.type != "series") {
                                     IconButton(
                                         onClick = { viewModel.toggleMovieWatched(item) },
@@ -236,26 +217,57 @@ fun DetailScreen(
                                     }
                                 }
 
+                                // Watchlist toggle button
                                 IconButton(
                                     onClick = { viewModel.toggleLibrary(item, WatchStatus.PLAN_TO_WATCH) },
                                     modifier = Modifier
                                         .size(42.dp)
                                         .clip(CircleShape)
-                                        .background(Color.Black.copy(alpha = 0.65f))
+                                        .background(if (isSaved) WuPlayPurple.copy(alpha = 0.35f) else Color.Black.copy(alpha = 0.65f))
+                                        .border(1.dp, if (isSaved) WuPlayPurple else Color.Transparent, CircleShape)
                                         .testTag("detail_library_toggle")
-                                    ) {
+                                ) {
                                     Icon(
                                         imageVector = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                                         contentDescription = "Bookmark",
-                                        tint = if (isSaved) StreamCyan else Color.White
+                                        tint = if (isSaved) WuPlayCyan else Color.White
                                     )
                                 }
+                            }
+                        }
+
+                        // Big Central Play Trigger Overlay
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(WuPlayPurple, WuPlayCyan)
+                                    )
+                                )
+                                .clickable {
+                                    val targetEp = if (item.type == "series") selectedEpisode ?: item.videos?.firstOrNull() else null
+                                    viewModel.playDirect(item, targetEp)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isDirectPlaying) {
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(32.dp), strokeWidth = 3.dp)
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = "Play",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(42.dp)
+                                )
                             }
                         }
                     }
                 }
 
-                // 2. Title, Watched Status Actions & Metadata Chips
+                // 2. Title, Badges, Direct Play Action & Metadata
                 item {
                     Column(
                         modifier = Modifier
@@ -270,78 +282,6 @@ fun DetailScreen(
                         )
 
                         Spacer(modifier = Modifier.height(10.dp))
-
-                        // Primary Action Buttons Row (Watch Now, Watched Toggle, Add to Library)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Mark as Watched button for Movies
-                            if (item.type != "series") {
-                                Button(
-                                    onClick = { viewModel.toggleMovieWatched(item) },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isMovieWatched) StreamGreen.copy(alpha = 0.25f) else StreamSurfaceVariant,
-                                        contentColor = if (isMovieWatched) StreamGreen else Color.White
-                                    ),
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                                        brush = Brush.horizontalGradient(
-                                            if (isMovieWatched) listOf(StreamGreen, StreamGreen) else listOf(StreamBorder, StreamBorder)
-                                        )
-                                    ),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(42.dp)
-                                        .testTag("mark_movie_watched_btn")
-                                ) {
-                                    Icon(
-                                        imageVector = if (isMovieWatched) Icons.Default.CheckCircle else Icons.Default.Check,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = if (isMovieWatched) "Watched ✓" else "Mark Watched",
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 13.sp
-                                    )
-                                }
-                            }
-
-                            // Library Button
-                            OutlinedButton(
-                                onClick = { viewModel.toggleLibrary(item, WatchStatus.PLAN_TO_WATCH) },
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = if (isSaved) StreamCyan else Color.White
-                                ),
-                                border = ButtonDefaults.outlinedButtonBorder.copy(
-                                    brush = Brush.horizontalGradient(
-                                        if (isSaved) listOf(StreamCyan, StreamCyan) else listOf(StreamBorder, StreamBorder)
-                                    )
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(42.dp)
-                                    .testTag("detail_library_button")
-                            ) {
-                                Icon(
-                                    imageVector = if (isSaved) Icons.Default.BookmarkAdded else Icons.Default.BookmarkAdd,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = if (isSaved) "In Watchlist" else "+ Watchlist",
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
 
                         // Metadata Badges Row
                         Row(
@@ -403,12 +343,12 @@ fun DetailScreen(
                             }
 
                             Surface(
-                                color = StreamPurple.copy(alpha = 0.2f),
+                                color = WuPlayPurple.copy(alpha = 0.25f),
                                 shape = RoundedCornerShape(6.dp)
                             ) {
                                 Text(
                                     text = item.type.uppercase(),
-                                    color = StreamPurple,
+                                    color = WuPlayCyan,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -416,9 +356,126 @@ fun DetailScreen(
                             }
                         }
 
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // PRIMARY DIRECT PLAY ACTION (WuPlay One-Click Instant Play)
+                        val playButtonText = when {
+                            isDirectPlaying -> "Resolving WuPlay Stream..."
+                            item.type == "series" -> {
+                                val ep = selectedEpisode ?: item.videos?.firstOrNull()
+                                if (ep != null) "Watch S${ep.season}:E${ep.episode} • ${ep.title}" else "Watch Series"
+                            }
+                            resumePositionMs > 0 -> "Resume Movie"
+                            else -> "Watch Movie Now"
+                        }
+
+                        Button(
+                            onClick = {
+                                val targetEp = if (item.type == "series") selectedEpisode ?: item.videos?.firstOrNull() else null
+                                viewModel.playDirect(item, targetEp)
+                            },
+                            enabled = !isDirectPlaying,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = WuPlayPurple,
+                                contentColor = Color.White
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                                .testTag("direct_play_button")
+                        ) {
+                            if (isDirectPlaying) {
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+                            Text(
+                                text = playButtonText,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Secondary Action Buttons Row (Mark Watched, Add to Watchlist)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (item.type != "series") {
+                                OutlinedButton(
+                                    onClick = { viewModel.toggleMovieWatched(item) },
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = if (isMovieWatched) StreamGreen else TextSecondary
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                                        brush = Brush.horizontalGradient(
+                                            if (isMovieWatched) listOf(StreamGreen, StreamGreen) else listOf(StreamBorder, StreamBorder)
+                                        )
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(42.dp)
+                                        .testTag("mark_movie_watched_btn")
+                                ) {
+                                    Icon(
+                                        imageVector = if (isMovieWatched) Icons.Default.CheckCircle else Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (isMovieWatched) "Watched ✓" else "Mark Watched",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+
+                            // Watchlist Button
+                            OutlinedButton(
+                                onClick = { viewModel.toggleLibrary(item, WatchStatus.PLAN_TO_WATCH) },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = if (isSaved) WuPlayCyan else TextSecondary
+                                ),
+                                border = ButtonDefaults.outlinedButtonBorder.copy(
+                                    brush = Brush.horizontalGradient(
+                                        if (isSaved) listOf(WuPlayPurple, WuPlayCyan) else listOf(StreamBorder, StreamBorder)
+                                    )
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(42.dp)
+                                    .testTag("detail_library_button")
+                            ) {
+                                Icon(
+                                    imageVector = if (isSaved) Icons.Default.BookmarkAdded else Icons.Default.BookmarkAdd,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isSaved) "In Watchlist" else "+ Watchlist",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
                         // Genres
                         if (!item.genres.isNullOrEmpty()) {
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(14.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -451,7 +508,7 @@ fun DetailScreen(
                             if (item.description.length > 120) {
                                 Text(
                                     text = if (isDescriptionExpanded) "Show Less" else "Read More",
-                                    color = StreamCyan,
+                                    color = WuPlayCyan,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier
@@ -483,7 +540,7 @@ fun DetailScreen(
                     }
                 }
 
-                // 3. SEASONS AND SEASONS TITLES SECTION (for series)
+                // 3. SEASONS, SEASON TITLES & EPISODES (Direct Play on Episode Tap)
                 if (item.type == "series" && !item.videos.isNullOrEmpty()) {
                     item {
                         Column(
@@ -503,7 +560,7 @@ fun DetailScreen(
                                     Icon(
                                         imageVector = Icons.Default.Tv,
                                         contentDescription = null,
-                                        tint = StreamCyan,
+                                        tint = WuPlayCyan,
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -548,10 +605,9 @@ fun DetailScreen(
                                         onClick = {
                                             activeSeasonNum = sNum
                                             viewModel.selectSeason(sNum)
-                                            val firstEpOfSeason = seasonEps.firstOrNull()
-                                            if (firstEpOfSeason != null) {
-                                                selectedEpisode = firstEpOfSeason
-                                                viewModel.selectEpisode(firstEpOfSeason)
+                                            val firstInSeason = seasonEps.firstOrNull()
+                                            if (firstInSeason != null) {
+                                                selectedEpisode = firstInSeason
                                             }
                                         },
                                         label = {
@@ -564,17 +620,17 @@ fun DetailScreen(
                                                 if (allSeasonWatched) {
                                                     Spacer(modifier = Modifier.width(4.dp))
                                                     Icon(
-                                                        imageVector = Icons.Default.CheckCircle,
-                                                        contentDescription = "Watched",
-                                                        tint = if (isSelected) Color.Black else StreamGreen,
-                                                        modifier = Modifier.size(14.dp)
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = "Season Watched",
+                                                        tint = if (isSelected) Color.White else StreamGreen,
+                                                        modifier = Modifier.size(13.dp)
                                                     )
                                                 }
                                             }
                                         },
                                         colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = StreamCyan,
-                                            selectedLabelColor = Color.Black,
+                                            selectedContainerColor = WuPlayPurple,
+                                            selectedLabelColor = Color.White,
                                             containerColor = StreamSurfaceVariant,
                                             labelColor = TextSecondary
                                         ),
@@ -582,7 +638,7 @@ fun DetailScreen(
                                             enabled = true,
                                             selected = isSelected,
                                             borderColor = StreamBorder,
-                                            selectedBorderColor = StreamCyan
+                                            selectedBorderColor = WuPlayPurple
                                         ),
                                         modifier = Modifier.testTag("season_chip_$sNum")
                                     )
@@ -591,120 +647,74 @@ fun DetailScreen(
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            // SEASON TITLE SHOWCASE BANNER
-                            val explicitSeasonTitle = currentSeasonEpisodes.firstOrNull { !it.seasonTitle.isNullOrBlank() }?.seasonTitle
-                            val seasonTitleDisplay = explicitSeasonTitle ?: when (activeSeasonNum) {
-                                1 -> "Season 1: Patagonian Escapades"
-                                2 -> "Season 2: Andean Heights"
-                                3 -> "Season 3: The Highland Expeditions"
-                                4 -> "Season 4: The Wild Frontiers"
-                                else -> "Season $activeSeasonNum"
-                            }
-
-                            val watchedCountInSeason = currentSeasonEpisodes.count { watchedEpisodes.contains(it.id) }
-                            val isEntireSeasonWatched = currentSeasonEpisodes.isNotEmpty() && watchedCountInSeason == currentSeasonEpisodes.size
-
+                            // SEASON TITLE & MARK SEASON AS WATCHED ACTION
                             Card(
                                 shape = RoundedCornerShape(12.dp),
                                 colors = CardDefaults.cardColors(containerColor = StreamCard),
                                 border = CardDefaults.outlinedCardBorder().copy(
-                                    brush = Brush.horizontalGradient(listOf(StreamCyan.copy(alpha = 0.5f), StreamPurple.copy(alpha = 0.3f)))
+                                    brush = Brush.horizontalGradient(listOf(StreamBorder, StreamBorderGlow))
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 16.dp)
-                                    .testTag("season_title_banner")
                             ) {
-                                Column(modifier = Modifier.padding(14.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Surface(
-                                            color = StreamCyan.copy(alpha = 0.2f),
-                                            shape = RoundedCornerShape(6.dp)
-                                        ) {
-                                            Text(
-                                                text = "SEASON $activeSeasonNum",
-                                                color = StreamCyan,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                            )
-                                        }
-
-                                        // Mark Entire Season Watched / Unmark Button
-                                        Surface(
-                                            onClick = {
-                                                val shouldMark = !isEntireSeasonWatched
-                                                viewModel.markSeasonWatched(currentSeasonEpisodes, shouldMark, item)
-                                                Toast.makeText(
-                                                    context,
-                                                    if (shouldMark) "Marked Season $activeSeasonNum as Watched" else "Unmarked Season $activeSeasonNum",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                            },
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = if (isEntireSeasonWatched) StreamGreen.copy(alpha = 0.2f) else StreamSurfaceVariant,
-                                            border = CardDefaults.outlinedCardBorder().copy(
-                                                brush = Brush.horizontalGradient(
-                                                    if (isEntireSeasonWatched) listOf(StreamGreen, StreamGreen) else listOf(StreamBorder, StreamBorder)
-                                                )
-                                            ),
-                                            modifier = Modifier.testTag("mark_season_watched_btn")
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = if (isEntireSeasonWatched) Icons.Default.CheckCircle else Icons.Default.DoneAll,
-                                                    contentDescription = null,
-                                                    tint = if (isEntireSeasonWatched) StreamGreen else TextSecondary,
-                                                    modifier = Modifier.size(14.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text(
-                                                    text = if (isEntireSeasonWatched) "Season Watched" else "Mark Season Watched",
-                                                    color = if (isEntireSeasonWatched) StreamGreen else TextSecondary,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Medium
-                                                )
-                                            }
-                                        }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = currentSeasonTitle,
+                                            color = Color.White,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "${currentSeasonEpisodes.size} episodes available",
+                                            color = TextMuted,
+                                            fontSize = 11.sp
+                                        )
                                     }
 
-                                    Spacer(modifier = Modifier.height(6.dp))
-
-                                    // Big Bold Season Title
-                                    Text(
-                                        text = seasonTitleDisplay,
-                                        color = Color.White,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-
-                                    Spacer(modifier = Modifier.height(4.dp))
-
-                                    Text(
-                                        text = "${currentSeasonEpisodes.size} Episodes • $watchedCountInSeason Watched • Full HD 1080p Stream",
-                                        color = TextSecondary,
-                                        fontSize = 12.sp
-                                    )
+                                    val allWatched = currentSeasonEpisodes.isNotEmpty() && currentSeasonEpisodes.all { watchedEpisodes.contains(it.id) }
+                                    TextButton(
+                                        onClick = {
+                                            viewModel.markSeasonWatched(currentSeasonEpisodes, !allWatched, item)
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (allWatched) Icons.Default.CheckCircle else Icons.Outlined.CheckCircle,
+                                            contentDescription = null,
+                                            tint = if (allWatched) StreamGreen else WuPlayCyan,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (allWatched) "Season Watched" else "Mark Season",
+                                            color = if (allWatched) StreamGreen else WuPlayCyan,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(14.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                            // Horizontal Episodes List
-                            LazyRow(
-                                contentPadding = PaddingValues(horizontal = 16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            // EPISODES LIST (Clicking ANY episode initiates DIRECT PLAYBACK!)
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                items(currentSeasonEpisodes, key = { it.id }) { ep ->
-                                    val isCurrent = selectedEpisode?.id == ep.id
+                                currentSeasonEpisodes.forEach { ep ->
                                     val isEpWatched = watchedEpisodes.contains(ep.id)
+                                    val isCurrent = selectedEpisode?.id == ep.id
 
                                     Card(
                                         shape = RoundedCornerShape(12.dp),
@@ -713,94 +723,96 @@ fun DetailScreen(
                                         ),
                                         border = CardDefaults.outlinedCardBorder().copy(
                                             brush = Brush.horizontalGradient(
-                                                if (isCurrent) listOf(StreamCyan, StreamCyan) else listOf(StreamBorder, StreamBorder)
+                                                if (isCurrent) listOf(WuPlayPurple, WuPlayCyan) else listOf(StreamBorder, StreamBorder)
                                             )
                                         ),
                                         modifier = Modifier
-                                            .width(200.dp)
+                                            .fillMaxWidth()
                                             .clickable {
                                                 selectedEpisode = ep
-                                                viewModel.selectEpisode(ep)
+                                                // DIRECT PLAY: Tapping episode immediately starts playback!
+                                                viewModel.playDirect(item, ep)
                                             }
-                                            .testTag("episode_${ep.id}")
+                                            .testTag("episode_card_${ep.id}")
                                     ) {
-                                        Column {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // Thumbnail Box with Play overlay & S:E badge
                                             Box(
                                                 modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(105.dp)
-                                                    .background(StreamSurfaceVariant)
+                                                    .size(width = 110.dp, height = 70.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(StreamSurface)
                                             ) {
-                                                if (!ep.thumbnail.isNullOrEmpty()) {
+                                                val thumb = ep.thumbnail ?: item.poster
+                                                if (!thumb.isNullOrEmpty()) {
                                                     AsyncImage(
-                                                        model = ep.thumbnail,
+                                                        model = thumb,
                                                         contentDescription = ep.title,
                                                         contentScale = ContentScale.Crop,
                                                         modifier = Modifier.fillMaxSize()
                                                     )
                                                 }
 
-                                                // Top Right: Episode Watched Interactive Toggle
-                                                Surface(
-                                                    onClick = {
-                                                        viewModel.toggleEpisodeWatched(ep, item)
-                                                    },
-                                                    color = Color.Black.copy(alpha = 0.75f),
-                                                    shape = CircleShape,
+                                                // Top-right watched toggle
+                                                IconButton(
+                                                    onClick = { viewModel.toggleEpisodeWatched(ep, item) },
                                                     modifier = Modifier
                                                         .align(Alignment.TopEnd)
-                                                        .padding(6.dp)
-                                                        .size(28.dp)
+                                                        .padding(2.dp)
+                                                        .size(24.dp)
                                                         .testTag("episode_watch_toggle_${ep.id}")
                                                 ) {
-                                                    Box(contentAlignment = Alignment.Center) {
-                                                        Icon(
-                                                            imageVector = if (isEpWatched) Icons.Default.CheckCircle else Icons.Outlined.CheckCircle,
-                                                            contentDescription = "Toggle Watched",
-                                                            tint = if (isEpWatched) StreamGreen else Color.White.copy(alpha = 0.7f),
-                                                            modifier = Modifier.size(18.dp)
-                                                        )
-                                                    }
+                                                    Icon(
+                                                        imageVector = if (isEpWatched) Icons.Default.CheckCircle else Icons.Outlined.CheckCircle,
+                                                        contentDescription = "Toggle Watched",
+                                                        tint = if (isEpWatched) StreamGreen else Color.White.copy(alpha = 0.8f),
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
                                                 }
 
-                                                // Bottom Left: Season / Episode badge
+                                                // Badge S1E1
                                                 Surface(
                                                     color = Color.Black.copy(alpha = 0.8f),
                                                     shape = RoundedCornerShape(4.dp),
                                                     modifier = Modifier
                                                         .align(Alignment.BottomStart)
-                                                        .padding(6.dp)
+                                                        .padding(4.dp)
                                                 ) {
                                                     Text(
-                                                        text = "S${ep.season}E${ep.episode}",
-                                                        color = StreamCyan,
-                                                        fontSize = 11.sp,
+                                                        text = "E${ep.episode}",
+                                                        color = WuPlayCyan,
+                                                        fontSize = 10.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                                     )
                                                 }
 
-                                                // Play icon overlay if active
-                                                if (isCurrent) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .align(Alignment.Center)
-                                                            .size(34.dp)
-                                                            .clip(CircleShape)
-                                                            .background(StreamCyan.copy(alpha = 0.85f)),
-                                                        contentAlignment = Alignment.Center
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.PlayArrow,
-                                                            contentDescription = null,
-                                                            tint = Color.Black,
-                                                            modifier = Modifier.size(20.dp)
-                                                        )
-                                                    }
+                                                // Play glyph
+                                                Box(
+                                                    modifier = Modifier
+                                                        .align(Alignment.Center)
+                                                        .size(28.dp)
+                                                        .clip(CircleShape)
+                                                        .background(WuPlayPurple.copy(alpha = 0.85f)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.PlayArrow,
+                                                        contentDescription = null,
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
                                                 }
                                             }
 
-                                            Column(modifier = Modifier.padding(10.dp)) {
+                                            Spacer(modifier = Modifier.width(12.dp))
+
+                                            Column(modifier = Modifier.weight(1f)) {
                                                 Row(
                                                     modifier = Modifier.fillMaxWidth(),
                                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -826,7 +838,7 @@ fun DetailScreen(
                                                 }
 
                                                 if (!ep.overview.isNullOrEmpty()) {
-                                                    Spacer(modifier = Modifier.height(3.dp))
+                                                    Spacer(modifier = Modifier.height(4.dp))
                                                     Text(
                                                         text = ep.overview,
                                                         color = TextSecondary,
@@ -835,177 +847,17 @@ fun DetailScreen(
                                                         overflow = TextOverflow.Ellipsis
                                                     )
                                                 }
+
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = "Tap to play directly",
+                                                    color = WuPlayCyan,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
                                             }
                                         }
                                     }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 4. STREAM SOURCES & STREAM OPTIONS SECTION
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 24.dp)
-                    ) {
-                        // Header with Title & Action to Add Custom Stream
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.PlayCircle,
-                                    contentDescription = null,
-                                    tint = StreamCyan,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = if (selectedEpisode != null) "Streams for ${selectedEpisode!!.title}" else "Available Streams",
-                                    color = Color.White,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-
-                            // Add Custom Stream button
-                            OutlinedButton(
-                                onClick = { showCustomStreamDialog = true },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = StreamCyan),
-                                border = ButtonDefaults.outlinedButtonBorder.copy(
-                                    brush = Brush.horizontalGradient(listOf(StreamCyan, StreamPurple))
-                                ),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                modifier = Modifier
-                                    .height(32.dp)
-                                    .testTag("add_custom_stream_btn")
-                            ) {
-                                Icon(Icons.Default.AddLink, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("+ Stream", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Stream Quality Filter Chips Row
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val filterOptions = listOf("All", "4K UHD", "1080p", "720p")
-                            filterOptions.forEach { qOption ->
-                                val isSelected = selectedQualityFilter == qOption
-                                val count = if (qOption == "All") streams.size else {
-                                    streams.count { it.quality?.contains(qOption.replace(" UHD", ""), ignoreCase = true) == true }
-                                }
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = { selectedQualityFilter = qOption },
-                                    label = {
-                                        Text(
-                                            text = "$qOption ($count)",
-                                            fontSize = 11.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                        )
-                                    },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = StreamCyan,
-                                        selectedLabelColor = Color.Black,
-                                        containerColor = StreamSurfaceVariant,
-                                        labelColor = TextSecondary
-                                    ),
-                                    border = FilterChipDefaults.filterChipBorder(
-                                        enabled = true,
-                                        selected = isSelected,
-                                        borderColor = StreamBorder,
-                                        selectedBorderColor = StreamCyan
-                                    ),
-                                    modifier = Modifier.testTag("quality_filter_$qOption")
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        if (isLoadingStreams && streams.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(120.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    CircularProgressIndicator(color = StreamCyan, modifier = Modifier.size(24.dp))
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text("Resolving streams from active addons...", color = TextSecondary, fontSize = 12.sp)
-                                }
-                            }
-                        } else if (filteredStreams.isEmpty()) {
-                            Card(
-                                shape = RoundedCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(containerColor = StreamSurfaceVariant),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(20.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Icon(Icons.Default.CloudOff, contentDescription = null, tint = TextMuted, modifier = Modifier.size(32.dp))
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = if (streams.isEmpty()) "No streams found from current addons" else "No streams matching $selectedQualityFilter",
-                                        color = Color.White,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "Try adding a custom stream link or resetting quality filters.",
-                                        color = TextSecondary,
-                                        fontSize = 12.sp,
-                                        textAlign = TextAlign.Center
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Button(
-                                        onClick = { showCustomStreamDialog = true },
-                                        colors = ButtonDefaults.buttonColors(containerColor = StreamCyan, contentColor = Color.Black),
-                                        shape = RoundedCornerShape(8.dp)
-                                    ) {
-                                        Text("Add Custom Stream URL", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                    }
-                                }
-                            }
-                        } else {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                filteredStreams.forEach { stream ->
-                                    StreamSourceCard(
-                                        stream = stream,
-                                        onClick = {
-                                            val resumePos = viewModel.getContinueWatchingPosition(item.id)
-                                            viewModel.navigateToPlayer(
-                                                stream = stream,
-                                                title = item.name,
-                                                subtitle = selectedEpisode?.title ?: item.releaseInfo,
-                                                itemId = item.id,
-                                                startPositionMs = resumePos,
-                                                meta = item,
-                                                episode = selectedEpisode
-                                            )
-                                        },
-                                        onOptionsClick = {
-                                            streamForOptionsDialog = stream
-                                        }
-                                    )
                                 }
                             }
                         }
@@ -1015,239 +867,6 @@ fun DetailScreen(
                 item {
                     Spacer(modifier = Modifier.height(40.dp))
                 }
-            }
-
-            // Stream Options Dialog (Copy URL, External Player, Details)
-            if (streamForOptionsDialog != null) {
-                val stream = streamForOptionsDialog!!
-                AlertDialog(
-                    onDismissRequest = { streamForOptionsDialog = null },
-                    title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Settings, contentDescription = null, tint = StreamCyan, modifier = Modifier.size(22.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Stream Source Options", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        }
-                    },
-                    text = {
-                        Column {
-                            Text(
-                                text = stream.title ?: "Stream Source",
-                                color = Color.White,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 14.sp
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Provider: ${stream.addonName} • Quality: ${stream.quality ?: "HD"}",
-                                color = TextSecondary,
-                                fontSize = 12.sp
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Play in App button
-                            Button(
-                                onClick = {
-                                    val resumePos = viewModel.getContinueWatchingPosition(item.id)
-                                    viewModel.navigateToPlayer(
-                                        stream = stream,
-                                        title = item.name,
-                                        subtitle = selectedEpisode?.title ?: item.releaseInfo,
-                                        itemId = item.id,
-                                        startPositionMs = resumePos,
-                                        meta = item,
-                                        episode = selectedEpisode
-                                    )
-                                    streamForOptionsDialog = null
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = StreamCyan, contentColor = Color.Black),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Play in App Player", fontWeight = FontWeight.Bold)
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Copy Stream URL
-                            OutlinedButton(
-                                onClick = {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    val clip = ClipData.newPlainText("Stream URL", stream.url ?: stream.externalUrl ?: "")
-                                    clipboard.setPrimaryClip(clip)
-                                    Toast.makeText(context, "Stream link copied to clipboard!", Toast.LENGTH_SHORT).show()
-                                    streamForOptionsDialog = null
-                                },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Copy Stream URL")
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Open in External Player (VLC / MX Player)
-                            OutlinedButton(
-                                onClick = {
-                                    try {
-                                        val streamUrl = stream.url ?: stream.externalUrl
-                                        if (!streamUrl.isNullOrEmpty()) {
-                                            val intent = Intent(Intent.ACTION_VIEW).apply {
-                                                setDataAndType(Uri.parse(streamUrl), "video/*")
-                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            }
-                                            context.startActivity(Intent.createChooser(intent, "Play stream with"))
-                                        }
-                                    } catch (e: Exception) {
-                                        Toast.makeText(context, "No external player found: ${e.message}", Toast.LENGTH_SHORT).show()
-                                    }
-                                    streamForOptionsDialog = null
-                                },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = StreamPurple),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Open in External Player (VLC)")
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { streamForOptionsDialog = null }) {
-                            Text("Close", color = TextSecondary)
-                        }
-                    },
-                    containerColor = StreamSurface
-                )
-            }
-
-            // Custom Stream URL Dialog
-            if (showCustomStreamDialog) {
-                var customUrl by remember { mutableStateOf("") }
-                var customTitle by remember { mutableStateOf("Custom Direct Stream") }
-                var customQuality by remember { mutableStateOf("1080p") }
-
-                AlertDialog(
-                    onDismissRequest = { showCustomStreamDialog = false },
-                    title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.AddLink, contentDescription = null, tint = StreamCyan, modifier = Modifier.size(22.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Add Custom Stream URL", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        }
-                    },
-                    text = {
-                        Column {
-                            Text(
-                                text = "Enter any direct HTTP/HTTPS video URL (.mp4, .m3u8, webm) to play immediately with this title.",
-                                color = TextSecondary,
-                                fontSize = 12.sp,
-                                lineHeight = 17.sp
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            OutlinedTextField(
-                                value = customUrl,
-                                onValueChange = { customUrl = it },
-                                label = { Text("Stream URL") },
-                                placeholder = { Text("https://example.com/video.mp4") },
-                                singleLine = true,
-                                trailingIcon = {
-                                    IconButton(
-                                        onClick = {
-                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                            val itemClip = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
-                                            if (!itemClip.isNullOrEmpty()) {
-                                                customUrl = itemClip
-                                            }
-                                        }
-                                    ) {
-                                        Icon(Icons.Default.ContentPaste, contentDescription = "Paste", tint = StreamCyan)
-                                    }
-                                },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = StreamCyan,
-                                    unfocusedBorderColor = StreamBorder,
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("custom_stream_url_input")
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            OutlinedTextField(
-                                value = customTitle,
-                                onValueChange = { customTitle = it },
-                                label = { Text("Stream Label / Name") },
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = StreamCyan,
-                                    unfocusedBorderColor = StreamBorder,
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                listOf("1080p", "4K UHD", "720p").forEach { q ->
-                                    FilterChip(
-                                        selected = customQuality == q,
-                                        onClick = { customQuality = q },
-                                        label = { Text(q, fontSize = 11.sp) },
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = StreamCyan,
-                                            selectedLabelColor = Color.Black
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        Button(
-                            onClick = {
-                                if (customUrl.isNotBlank()) {
-                                    val newStream = StreamItem(
-                                        title = customTitle.ifBlank { "Custom Direct Stream" },
-                                        name = "Direct URL Source",
-                                        url = customUrl.trim(),
-                                        quality = customQuality,
-                                        addonName = "Custom URL"
-                                    )
-                                    viewModel.addCustomStream(newStream)
-                                    Toast.makeText(context, "Added stream to available sources!", Toast.LENGTH_SHORT).show()
-                                    showCustomStreamDialog = false
-                                }
-                            },
-                            enabled = customUrl.isNotBlank(),
-                            colors = ButtonDefaults.buttonColors(containerColor = StreamCyan, contentColor = Color.Black)
-                        ) {
-                            Text("Add & Play", fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showCustomStreamDialog = false }) {
-                            Text("Cancel", color = TextSecondary)
-                        }
-                    },
-                    containerColor = StreamSurface
-                )
             }
         }
     }

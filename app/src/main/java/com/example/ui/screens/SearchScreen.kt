@@ -37,15 +37,16 @@ fun SearchScreen(
     val installedAddons by viewModel.installedAddons.collectAsState()
 
     val popularSuggestions = listOf(
+        "Stranger Things",
+        "Severance",
+        "The Mandalorian",
+        "House of the Dragon",
+        "The Boys",
+        "Ted Lasso",
+        "The Bear",
         "Big Buck Bunny",
         "Sintel",
-        "Tears of Steel",
-        "Night of the Living Dead",
-        "Metropolis",
-        "ISS Earth Views",
-        "Artemis",
-        "Charade",
-        "The General"
+        "Yellowstone"
     )
 
     Scaffold(

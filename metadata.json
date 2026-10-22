@@ -1,6 +1,6 @@
 {
-  "name": "NovaStream",
-  "description": "Media aggregator and streaming app with modular addon support, rich catalogs, and media player.",
+  "name": "WuPlay",
+  "description": "WuPlay - Next-generation media streaming hub with direct auto-playback, streaming services catalog, cloud watchlist, and comprehensive player settings.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

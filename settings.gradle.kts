@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "NovaStream"
+rootProject.name = "WuPlay"
 
 include(":app")

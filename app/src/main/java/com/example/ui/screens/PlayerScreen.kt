@@ -88,18 +88,25 @@ fun PlayerScreen(
     var currentPositionMs by remember { mutableStateOf(startPositionMs) }
     var durationMs by remember { mutableStateOf(0L) }
     var areControlsVisible by remember { mutableStateOf(true) }
-    var currentSpeed by remember { mutableStateOf(1.0f) }
-    var resizeMode by remember { mutableStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
+    val globalPlaybackSettings by viewModel.playbackSettings.collectAsState()
+    var currentSpeed by remember { mutableFloatStateOf(globalPlaybackSettings.playbackSpeed) }
+    var resizeMode by remember { mutableIntStateOf(globalPlaybackSettings.resizeMode) }
+
+    LaunchedEffect(globalPlaybackSettings) {
+        currentSpeed = globalPlaybackSettings.playbackSpeed
+        resizeMode = globalPlaybackSettings.resizeMode
+        exoPlayer.playbackParameters = PlaybackParameters(globalPlaybackSettings.playbackSpeed)
+    }
 
     // Subtitle & Audio Settings State
-    var subtitleSettings by remember {
+    var subtitleSettings by remember(globalPlaybackSettings) {
         mutableStateOf(
             SubtitleSettings(
-                isEnabled = true,
-                selectedLanguage = "eng",
-                fontSizeSp = 18,
+                isEnabled = globalPlaybackSettings.defaultSubtitleLang != "off",
+                selectedLanguage = if (globalPlaybackSettings.defaultSubtitleLang != "off") globalPlaybackSettings.defaultSubtitleLang else "eng",
+                fontSizeSp = globalPlaybackSettings.subtitleFontSize,
                 textColor = "white",
-                hasBackgroundBox = true,
+                hasBackgroundBox = globalPlaybackSettings.subtitleStyle == "box",
                 delayOffsetMs = 0L
             )
         )
@@ -147,6 +154,15 @@ fun PlayerScreen(
                 isBuffering = state == Player.STATE_BUFFERING
                 if (state == Player.STATE_READY) {
                     durationMs = exoPlayer.duration.coerceAtLeast(0L)
+                } else if (state == Player.STATE_ENDED) {
+                    val settings = viewModel.playbackSettings.value
+                    if (settings.autoPlayNextEpisode && meta?.videos != null && episode != null) {
+                        val currentIdx = meta.videos.indexOfFirst { it.id == episode.id }
+                        if (currentIdx >= 0 && currentIdx + 1 < meta.videos.size) {
+                            val nextEp = meta.videos[currentIdx + 1]
+                            viewModel.playDirect(meta, nextEp)
+                        }
+                    }
                 }
             }
         }

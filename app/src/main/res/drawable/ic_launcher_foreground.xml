@@ -3,6 +3,6 @@
     <item
         android:width="66dp"
         android:height="66dp"
-        android:drawable="@drawable/ic_launcher_fg"
+        android:drawable="@drawable/wuplay_launcher_icon_1792657455911"
         android:gravity="center" />
 </layer-list>

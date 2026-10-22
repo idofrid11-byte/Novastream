@@ -7,14 +7,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
-    primary = StreamCyan,
-    onPrimary = Color.Black,
+    primary = WuPlayPurple,
+    onPrimary = Color.White,
     primaryContainer = StreamSurfaceVariant,
-    onPrimaryContainer = StreamCyan,
-    secondary = StreamPurple,
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFF2A1F45),
-    onSecondaryContainer = StreamPurple,
+    onPrimaryContainer = WuPlayCyan,
+    secondary = WuPlayCyan,
+    onSecondary = Color.Black,
+    secondaryContainer = Color(0xFF281E48),
+    onSecondaryContainer = WuPlayPurple,
     tertiary = StreamCoral,
     onTertiary = Color.White,
     background = StreamBg,
@@ -24,13 +24,13 @@ private val DarkColorScheme = darkColorScheme(
     surfaceVariant = StreamSurfaceVariant,
     onSurfaceVariant = TextSecondary,
     outline = StreamBorder,
-    outlineVariant = Color(0xFF222538)
+    outlineVariant = StreamBorderGlow
 )
 
 @Composable
 fun MyApplicationTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // Forced custom cinematic streaming theme
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     MaterialTheme(

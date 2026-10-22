@@ -3,6 +3,7 @@ package com.example.data.repository
 import android.content.Context
 import android.util.Log
 import com.example.data.api.BuiltinAddons
+import com.example.data.api.StreamingServicesData
 import com.example.data.api.StremioApiClient
 import com.example.data.model.*
 import kotlinx.coroutines.CoroutineScope
@@ -171,13 +172,29 @@ class AddonRepository(
     }
 
     /**
-     * Aggregates catalog rows from all active addons
+     * Aggregates catalog rows from all active addons and streaming service catalogs
      */
     suspend fun loadCatalogsForSection(mediaType: String, genre: String? = null): Map<String, List<MetaItem>> {
         val activeAddons = _installedAddons.value.filter { it.isEnabled }
         val results = mutableMapOf<String, List<MetaItem>>()
 
-        // First add curated internal addons
+        // Curated Streaming Services Catalogs (Netflix, Apple TV+, Disney+, Max, Prime)
+        val netflix = StreamingServicesData.NETFLIX_ITEMS.filter { (mediaType == "all" || it.type == mediaType) && (genre == null || it.genres?.contains(genre) == true) }
+        if (netflix.isNotEmpty()) results["Netflix Originals"] = netflix
+
+        val appleTv = StreamingServicesData.APPLE_TV_ITEMS.filter { (mediaType == "all" || it.type == mediaType) && (genre == null || it.genres?.contains(genre) == true) }
+        if (appleTv.isNotEmpty()) results["Apple TV+ Exclusives"] = appleTv
+
+        val disney = StreamingServicesData.DISNEY_ITEMS.filter { (mediaType == "all" || it.type == mediaType) && (genre == null || it.genres?.contains(genre) == true) }
+        if (disney.isNotEmpty()) results["Disney+ Hits"] = disney
+
+        val maxItems = StreamingServicesData.HBO_MAX_ITEMS.filter { (mediaType == "all" || it.type == mediaType) && (genre == null || it.genres?.contains(genre) == true) }
+        if (maxItems.isNotEmpty()) results["Max & HBO Originals"] = maxItems
+
+        val primeAndHulu = (StreamingServicesData.PRIME_ITEMS + StreamingServicesData.HULU_ITEMS).filter { (mediaType == "all" || it.type == mediaType) && (genre == null || it.genres?.contains(genre) == true) }
+        if (primeAndHulu.isNotEmpty()) results["Prime Video & Hulu Originals"] = primeAndHulu
+
+        // Curated internal addons
         if (activeAddons.any { it.id == BuiltinAddons.BLENDER_OPEN_CINEMA.id }) {
             val items = BuiltinAddons.BLENDER_MOVIES.filter {
                 (mediaType == "all" || it.type == mediaType) &&
@@ -228,7 +245,14 @@ class AddonRepository(
     }
 
     /**
-     * Searches across all installed and active addons
+     * Loads catalog for a specific streaming service provider
+     */
+    fun loadStreamingCatalog(providerId: String): List<MetaItem> {
+        return StreamingServicesData.getItemsForProvider(providerId)
+    }
+
+    /**
+     * Searches across all installed and active addons + streaming services
      */
     suspend fun searchAllAddons(query: String, type: String = "all"): List<MetaItem> {
         if (query.isBlank()) return emptyList()
@@ -237,7 +261,19 @@ class AddonRepository(
         val aggregated = mutableListOf<MetaItem>()
         val seenIds = mutableSetOf<String>()
 
-        // 1. Search internal collections
+        // 1. Search streaming services collections
+        val streamingPool = StreamingServicesData.ALL_STREAMING_ITEMS
+        val matchedStreaming = streamingPool.filter { item ->
+            (type == "all" || item.type == type) &&
+                    (item.name.contains(query, ignoreCase = true) ||
+                            item.description?.contains(query, ignoreCase = true) == true ||
+                            item.genres?.any { it.contains(query, ignoreCase = true) } == true)
+        }
+        for (item in matchedStreaming) {
+            if (seenIds.add(item.id)) aggregated.add(item)
+        }
+
+        // 2. Search internal collections
         val internalPool = BuiltinAddons.BLENDER_MOVIES + BuiltinAddons.PUBLIC_DOMAIN_MOVIES + BuiltinAddons.NASA_ITEMS
         val matchedInternal = internalPool.filter { item ->
             (type == "all" || item.type == type) &&
@@ -249,9 +285,8 @@ class AddonRepository(
             if (seenIds.add(item.id)) aggregated.add(item)
         }
 
-        // 2. Search external addons concurrently
+        // 3. Search external addons concurrently
         val externalAddons = activeAddons.filter { !it.transportUrl.startsWith("internal://") && it.supportsResource("catalog") }
-
         val searchTypes = if (type == "all") listOf("movie", "series") else listOf(type)
 
         for (addon in externalAddons) {
@@ -273,7 +308,13 @@ class AddonRepository(
      * Resolves metadata for an item across all addons
      */
     suspend fun resolveMeta(id: String, type: String): MetaDetail? {
-        // Check internal addons first
+        // Check streaming services first
+        if (id.startsWith("stream_")) {
+            val streamingMeta = StreamingServicesData.getStreamingMeta(id)
+            if (streamingMeta != null) return streamingMeta
+        }
+
+        // Check internal addons
         val internalMeta = BuiltinAddons.getInternalMeta(id)
         if (internalMeta != null) return internalMeta
 
@@ -291,14 +332,19 @@ class AddonRepository(
      * Resolves all available streams for an item across all installed addons
      */
     suspend fun resolveStreams(id: String, type: String): List<StreamItem> {
+        // 1. Check streaming services
+        if (id.startsWith("stream_")) {
+            return StreamingServicesData.getStreamingStreams(id)
+        }
+
         val activeAddons = _installedAddons.value.filter { it.isEnabled && it.supportsResource("stream") }
         val streamList = mutableListOf<StreamItem>()
 
-        // 1. Check internal streams
+        // 2. Check internal streams
         val internalStreams = BuiltinAddons.getStreams(id)
         streamList.addAll(internalStreams)
 
-        // 2. Query external addons that support stream
+        // 3. Query external addons that support stream
         for (addon in activeAddons) {
             if (addon.transportUrl.startsWith("internal://")) continue
             if (addon.matchesIdPrefix(id)) {
