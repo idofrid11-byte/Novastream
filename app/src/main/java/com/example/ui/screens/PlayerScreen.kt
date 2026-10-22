@@ -49,6 +49,7 @@ import com.example.data.model.StreamItem
 import com.example.data.model.SubtitleSettings
 import com.example.data.model.VideoEpisode
 import com.example.data.subtitles.SubtitleProvider
+import com.example.player.ExoPlayerHelper
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.delay
@@ -69,12 +70,17 @@ fun PlayerScreen(
 ) {
     val context = LocalContext.current
 
-    // Setup ExoPlayer
+    // Setup ExoPlayer using ExoPlayerHelper
+    var playbackErrorMessage by remember { mutableStateOf<String?>(null) }
+    var bufferedPositionMs by remember { mutableStateOf(0L) }
+    val globalPlaybackSettings by viewModel.playbackSettings.collectAsState()
+
+    val mediaUrl = stream.url ?: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+
     val exoPlayer = remember(stream.url) {
-        ExoPlayer.Builder(context).build().apply {
-            val mediaUrl = stream.url ?: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
-            val mediaItem = MediaItem.fromUri(Uri.parse(mediaUrl))
-            setMediaItem(mediaItem)
+        ExoPlayerHelper.createExoPlayer(context, globalPlaybackSettings).apply {
+            val mediaSource = ExoPlayerHelper.buildMediaSource(context, mediaUrl)
+            setMediaSource(mediaSource)
             prepare()
             if (startPositionMs > 0) {
                 seekTo(startPositionMs)
@@ -88,7 +94,6 @@ fun PlayerScreen(
     var currentPositionMs by remember { mutableStateOf(startPositionMs) }
     var durationMs by remember { mutableStateOf(0L) }
     var areControlsVisible by remember { mutableStateOf(true) }
-    val globalPlaybackSettings by viewModel.playbackSettings.collectAsState()
     var currentSpeed by remember { mutableFloatStateOf(globalPlaybackSettings.playbackSpeed) }
     var resizeMode by remember { mutableIntStateOf(globalPlaybackSettings.resizeMode) }
 
@@ -153,6 +158,7 @@ fun PlayerScreen(
             override fun onPlaybackStateChanged(state: Int) {
                 isBuffering = state == Player.STATE_BUFFERING
                 if (state == Player.STATE_READY) {
+                    playbackErrorMessage = null
                     durationMs = exoPlayer.duration.coerceAtLeast(0L)
                 } else if (state == Player.STATE_ENDED) {
                     val settings = viewModel.playbackSettings.value
@@ -164,6 +170,11 @@ fun PlayerScreen(
                         }
                     }
                 }
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                playbackErrorMessage = error.localizedMessage ?: "Playback error encountered. Please retry or open in external player."
+                isBuffering = false
             }
         }
         exoPlayer.addListener(listener)
@@ -186,6 +197,7 @@ fun PlayerScreen(
             if (exoPlayer.isPlaying) {
                 currentPositionMs = exoPlayer.currentPosition
                 durationMs = exoPlayer.duration.coerceAtLeast(0L)
+                bufferedPositionMs = exoPlayer.bufferedPosition
 
                 viewModel.updateProgress(
                     id = itemId,
@@ -944,6 +956,88 @@ fun PlayerScreen(
                 },
                 containerColor = StreamSurface
             )
+        }
+
+        // PLAYBACK ERROR OVERLAY
+        if (playbackErrorMessage != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.88f))
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = StreamSurface),
+                    border = CardDefaults.outlinedCardBorder().copy(
+                        brush = androidx.compose.ui.graphics.SolidColor(StreamBorder)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .testTag("playback_error_card")
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ErrorOutline,
+                            contentDescription = null,
+                            tint = StreamCoral,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Playback Failed",
+                            color = Color.White,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = playbackErrorMessage ?: "Could not stream video content.",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(18.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    playbackErrorMessage = null
+                                    exoPlayer.prepare()
+                                    exoPlayer.play()
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.testTag("retry_playback_button")
+                            ) {
+                                Text("Retry", color = Color.White)
+                            }
+                            Button(
+                                onClick = {
+                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(Uri.parse(mediaUrl), "video/*")
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
+                                    try {
+                                        context.startActivity(Intent.createChooser(intent, "Open with player"))
+                                    } catch (e: Exception) {
+                                        // Ignore
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = StreamCyan, contentColor = Color.Black),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.testTag("open_external_fallback_button")
+                            ) {
+                                Text("External Player", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -64,21 +64,21 @@ fun StreamingServicesScreen(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "Streaming",
+                                text = "Discover",
                                 color = Color.White,
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Networks",
-                                color = WuPlayCyan,
+                                text = "Catalogs",
+                                color = StremioPurpleLight,
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                         Text(
-                            text = "Browse official network catalogs & exclusives",
+                            text = "Explore movies, series & official network catalogs",
                             color = TextMuted,
                             fontSize = 12.sp
                         )
@@ -90,8 +90,8 @@ fun StreamingServicesScreen(
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
-                            text = "${providers.size} Networks",
-                            color = WuPlayCyan,
+                            text = "${providers.size} Catalogs",
+                            color = StremioPurpleLight,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -303,7 +303,7 @@ fun StreamingServicesScreen(
 
                                 // Type Badge
                                 Surface(
-                                    color = WuPlayPurple.copy(alpha = 0.85f),
+                                    color = StremioPurple.copy(alpha = 0.85f),
                                     shape = RoundedCornerShape(4.dp),
                                     modifier = Modifier
                                         .align(Alignment.BottomStart)

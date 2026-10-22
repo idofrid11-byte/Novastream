@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -17,22 +18,32 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.R
 import com.example.data.model.LibraryItem
 import com.example.data.model.WatchStatus
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.AppTab
 import com.example.ui.viewmodel.MainViewModel
 
+/**
+ * Stremio Library Screen
+ * Faithfully mirrors the Library route from official Stremio Web.
+ * Features:
+ * - Stremio Logo & Library Header with title counter
+ * - Filter pills: All, Watching, Plan to Watch, Watched
+ * - Cloud synchronization with Firebase Firestore
+ * - Poster cards with watch progress and IMDb rating badges
+ */
 @Composable
 fun WatchlistScreen(
     viewModel: MainViewModel,
@@ -47,11 +58,9 @@ fun WatchlistScreen(
 
     val filteredItems = remember(libraryItems, selectedTabFilter) {
         when (selectedTabFilter) {
-            "Movies" -> libraryItems.filter { it.type == "movie" }
-            "Series" -> libraryItems.filter { it.type == "series" }
-            "Watching" -> libraryItems.filter { it.status == WatchStatus.WATCHING }
+            "Watching" -> libraryItems.filter { it.status == WatchStatus.WATCHING || (it.watchPositionMs > 0 && it.progressFraction < 0.95f) }
             "Plan to Watch" -> libraryItems.filter { it.status == WatchStatus.PLAN_TO_WATCH }
-            "Completed" -> libraryItems.filter { it.status == WatchStatus.COMPLETED }
+            "Watched" -> libraryItems.filter { it.status == WatchStatus.COMPLETED || it.progressFraction >= 0.95f }
             else -> libraryItems
         }
     }
@@ -61,54 +70,65 @@ fun WatchlistScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(StreamSurface)
+                    .background(StremioDark)
                     .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.stremio_symbol),
+                            contentDescription = "Stremio",
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Column {
                             Text(
-                                text = "WuPlay",
+                                text = "Library",
                                 color = Color.White,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = StremioFontFamily
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Watchlist",
-                                color = WuPlayCyan,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold
+                                text = "${libraryItems.size} saved titles • ${if (currentUser != null) "Cloud Synced" else "On Device"}",
+                                color = TextMuted,
+                                fontSize = 11.sp,
+                                fontFamily = StremioFontFamily
                             )
                         }
-                        Text(
-                            text = "${libraryItems.size} saved titles • ${if (currentUser != null) "Cloud synced" else "Local device"}",
-                            color = TextMuted,
-                            fontSize = 12.sp
-                        )
                     }
 
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         if (currentUser != null) {
                             IconButton(
                                 onClick = { viewModel.syncLibraryWithCloud() },
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape)
-                                    .background(StreamSurfaceVariant)
+                                    .background(StremioSurfaceVariant)
+                                    .testTag("sync_cloud_button")
                             ) {
                                 if (isSyncing) {
-                                    CircularProgressIndicator(color = WuPlayCyan, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    CircularProgressIndicator(
+                                        color = StremioPurple,
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp
+                                    )
                                 } else {
                                     Icon(
-                                        imageVector = Icons.Default.Sync,
-                                        contentDescription = "Sync",
-                                        tint = WuPlayCyan,
+                                        imageVector = Icons.Default.CloudSync,
+                                        contentDescription = "Sync Cloud",
+                                        tint = StremioPurpleLight,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
@@ -116,73 +136,65 @@ fun WatchlistScreen(
                         }
 
                         IconButton(
-                            onClick = { viewModel.switchTab(AppTab.DISCOVER) },
+                            onClick = { viewModel.switchTab(AppTab.SETTINGS) },
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(WuPlayPurple)
+                                .background(StremioSurfaceVariant)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "Add Titles",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                // Watchlist Filter Tabs
+                // Library Filter Chips
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val tabs = listOf("All", "Movies", "Series", "Watching", "Plan to Watch", "Completed")
-                    tabs.forEach { tab ->
-                        val isSelected = selectedTabFilter == tab
-                        val count = when (tab) {
-                            "Movies" -> libraryItems.count { it.type == "movie" }
-                            "Series" -> libraryItems.count { it.type == "series" }
-                            "Watching" -> libraryItems.count { it.status == WatchStatus.WATCHING }
-                            "Plan to Watch" -> libraryItems.count { it.status == WatchStatus.PLAN_TO_WATCH }
-                            "Completed" -> libraryItems.count { it.status == WatchStatus.COMPLETED }
-                            else -> libraryItems.size
-                        }
-
+                    val filterCategories = listOf("All", "Watching", "Plan to Watch", "Watched")
+                    filterCategories.forEach { category ->
+                        val isSelected = selectedTabFilter == category
                         FilterChip(
                             selected = isSelected,
-                            onClick = { selectedTabFilter = tab },
+                            onClick = { selectedTabFilter = category },
                             label = {
                                 Text(
-                                    text = "$tab ($count)",
+                                    text = category,
                                     fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    fontFamily = StremioFontFamily
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = WuPlayPurple,
+                                selectedContainerColor = StremioPurple,
                                 selectedLabelColor = Color.White,
-                                containerColor = StreamSurfaceVariant,
+                                containerColor = StremioSurfaceVariant,
                                 labelColor = TextSecondary
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = isSelected,
-                                borderColor = StreamBorder,
-                                selectedBorderColor = WuPlayPurple
+                                borderColor = StremioBorder,
+                                selectedBorderColor = StremioPurple
                             ),
-                            modifier = Modifier.testTag("watchlist_tab_$tab")
+                            modifier = Modifier.testTag("library_filter_$category")
                         )
                     }
                 }
             }
         },
-        containerColor = StreamBg,
-        modifier = modifier.testTag("watchlist_screen")
+        containerColor = StremioBg,
+        modifier = modifier.testTag("library_screen")
     ) { innerPadding ->
         if (filteredItems.isEmpty()) {
             Box(
@@ -193,162 +205,193 @@ fun WatchlistScreen(
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(24.dp)
+                    modifier = Modifier.padding(32.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(64.dp)
+                            .size(72.dp)
                             .clip(CircleShape)
-                            .background(StreamSurfaceVariant),
+                            .background(StremioSurfaceVariant),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.BookmarkBorder,
                             contentDescription = null,
-                            tint = WuPlayCyan,
-                            modifier = Modifier.size(32.dp)
+                            tint = StremioPurpleLight,
+                            modifier = Modifier.size(36.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = if (libraryItems.isEmpty()) "Your Watchlist is Empty" else "No $selectedTabFilter Found",
+                        text = if (selectedTabFilter == "All") "Your Stremio Library is empty" else "No $selectedTabFilter titles",
                         color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = StremioFontFamily
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Browse Movies, TV Shows, and Streaming Services to add titles to your personal WuPlay collection.",
+                        text = "Browse Board or Discover to bookmark movies and series to your Library.",
                         color = TextSecondary,
                         fontSize = 13.sp,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        fontFamily = StremioFontFamily
                     )
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
                     Button(
-                        onClick = { viewModel.switchTab(AppTab.DISCOVER) },
-                        colors = ButtonDefaults.buttonColors(containerColor = WuPlayPurple, contentColor = Color.White),
+                        onClick = { viewModel.switchTab(AppTab.BOARD) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = StremioPurple,
+                            contentColor = Color.White
+                        ),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Icon(Icons.Default.Explore, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Explore Titles")
+                        Text(
+                            text = "Browse Board",
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = StremioFontFamily
+                        )
                     }
                 }
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+                columns = GridCells.Adaptive(minSize = 110.dp),
+                contentPadding = PaddingValues(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
+                    .testTag("library_grid")
             ) {
-                items(filteredItems) { item ->
-                    Card(
-                        shape = RoundedCornerShape(10.dp),
-                        colors = CardDefaults.cardColors(containerColor = StreamCard),
-                        border = CardDefaults.outlinedCardBorder().copy(
-                            brush = Brush.horizontalGradient(listOf(StreamBorder, StreamBorder))
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onNavigateToDetail(item.id, item.type) }
-                            .testTag("watchlist_item_${item.id}")
-                    ) {
-                        Column {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(155.dp)
-                            ) {
-                                if (!item.poster.isNullOrEmpty()) {
-                                    AsyncImage(
-                                        model = item.poster,
-                                        contentDescription = item.name,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                } else {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(StreamSurfaceVariant),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.Default.Movie, contentDescription = null, tint = TextMuted)
-                                    }
-                                }
-
-                                // Quick Remove Bookmark
-                                IconButton(
-                                    onClick = { viewModel.removeFromLibrary(item.id) },
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(2.dp)
-                                        .size(26.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.Black.copy(alpha = 0.65f))
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Remove",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                }
-
-                                // Type Badge
-                                Surface(
-                                    color = WuPlayPurple.copy(alpha = 0.85f),
-                                    shape = RoundedCornerShape(4.dp),
-                                    modifier = Modifier
-                                        .align(Alignment.BottomStart)
-                                        .padding(4.dp)
-                                ) {
-                                    Text(
-                                        text = item.type.uppercase(),
-                                        color = Color.White,
-                                        fontSize = 8.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-
-                                // Progress bar for in-progress items
-                                if (item.watchPositionMs > 0 && item.progressFraction > 0f) {
-                                    LinearProgressIndicator(
-                                        progress = { item.progressFraction },
-                                        color = WuPlayCyan,
-                                        trackColor = Color.Black.copy(alpha = 0.6f),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(3.dp)
-                                            .align(Alignment.BottomCenter)
-                                    )
-                                }
-                            }
-
-                            Column(modifier = Modifier.padding(6.dp)) {
-                                Text(
-                                    text = item.name,
-                                    color = Color.White,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = item.status.displayName,
-                                    color = WuPlayCyan,
-                                    fontSize = 10.sp
-                                )
-                            }
-                        }
-                    }
+                items(filteredItems, key = { it.id }) { item ->
+                    StremioLibraryPosterCard(
+                        item = item,
+                        onClick = { onNavigateToDetail(item.id, item.type) }
+                    )
                 }
             }
         }
+    }
+}
+
+/**
+ * Poster card for Stremio Library items with progress bar and watched indicator.
+ */
+@Composable
+fun StremioLibraryPosterCard(
+    item: LibraryItem,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .testTag("library_item_${item.id}")
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(165.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(StremioSurfaceVariant)
+        ) {
+            val posterUrl = item.poster ?: item.background
+            if (!posterUrl.isNullOrEmpty()) {
+                AsyncImage(
+                    model = posterUrl,
+                    contentDescription = item.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(StremioSurfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Movie,
+                        contentDescription = null,
+                        tint = TextMuted,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+
+            // Top-left IMDb rating badge
+            if (!item.imdbRating.isNullOrEmpty()) {
+                Surface(
+                    color = StremioIMDb,
+                    shape = RoundedCornerShape(topStart = 4.dp, bottomEnd = 4.dp),
+                    modifier = Modifier.align(Alignment.TopStart)
+                ) {
+                    Text(
+                        text = item.imdbRating,
+                        color = Color.Black,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = StremioFontFamily,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            // Watched checkmark badge if completed
+            if (item.status == WatchStatus.COMPLETED || item.progressFraction >= 0.95f) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(StreamGreen),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Watched",
+                        tint = Color.Black,
+                        modifier = Modifier.size(13.dp)
+                    )
+                }
+            }
+
+            // Bottom Progress bar if watching
+            if (item.progressFraction in 0.01f..0.94f) {
+                LinearProgressIndicator(
+                    progress = { item.progressFraction },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .align(Alignment.BottomCenter),
+                    color = StremioPurple,
+                    trackColor = Color.White.copy(alpha = 0.2f)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = item.name,
+            color = Color.White,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            fontFamily = StremioFontFamily
+        )
+
+        Text(
+            text = item.releaseInfo ?: item.type.replaceFirstChar { it.uppercase() },
+            color = TextMuted,
+            fontSize = 11.sp,
+            maxLines = 1,
+            fontFamily = StremioFontFamily
+        )
     }
 }

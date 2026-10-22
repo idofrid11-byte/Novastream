@@ -8,28 +8,34 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.api.BuiltinAddons
 import com.example.data.api.StreamingServicesData
 import com.example.data.auth.AuthManager
+import com.example.data.db.AppDatabase
+import com.example.data.db.RecentSearch
 import com.example.data.model.*
 import com.example.data.repository.AddonRepository
 import com.example.data.repository.LibraryRepository
+import com.example.data.repository.SearchHistoryRepository
 import com.example.data.settings.PlaybackSettings
 import com.example.data.settings.PlaybackSettingsManager
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 enum class AppTab {
+    BOARD,
     DISCOVER,
-    STREAMING,
+    LIBRARY,
     SEARCH,
-    WATCHLIST,
+    ADDONS,
     SETTINGS,
-    LIBRARY, // Backward compatibility alias
-    ADDONS,  // Backward compatibility alias
-    ACCOUNT  // Backward compatibility alias
+    STREAMING, // Backward compatibility alias
+    WATCHLIST, // Backward compatibility alias
+    ACCOUNT    // Backward compatibility alias
 }
 
 sealed class ScreenDestination {
@@ -52,6 +58,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val addonRepository = AddonRepository(application.applicationContext)
     private val libraryRepository = LibraryRepository(application.applicationContext)
     private val playbackSettingsManager = PlaybackSettingsManager(application.applicationContext)
+    private val localDatabase = AppDatabase.getInstance(application.applicationContext)
+    private val searchHistoryRepository = SearchHistoryRepository(localDatabase.recentSearchDao())
 
     val currentUser: StateFlow<FirebaseUser?> = authManager.currentUser
     val authError: StateFlow<String?> = authManager.authError
@@ -60,12 +68,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val installedAddons: StateFlow<List<AddonManifest>> = addonRepository.installedAddons
     val libraryItems: StateFlow<List<LibraryItem>> = libraryRepository.libraryItems
     val watchedEpisodes: StateFlow<Set<String>> = libraryRepository.watchedEpisodes
+    val recentSearches: StateFlow<List<RecentSearch>> = searchHistoryRepository.recentSearches
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
     // Playback Settings
     val playbackSettings: StateFlow<PlaybackSettings> = playbackSettingsManager.settings
 
     // Navigation state
-    private val _currentTab = MutableStateFlow(AppTab.DISCOVER)
+    private val _currentTab = MutableStateFlow(AppTab.BOARD)
     val currentTab: StateFlow<AppTab> = _currentTab.asStateFlow()
 
     private val _screenDestination = MutableStateFlow<ScreenDestination>(ScreenDestination.Tabs)
@@ -146,10 +160,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun switchTab(tab: AppTab) {
-        // Map backward compatibility aliases
         val targetTab = when (tab) {
-            AppTab.LIBRARY -> AppTab.WATCHLIST
-            AppTab.ACCOUNT, AppTab.ADDONS -> AppTab.SETTINGS
+            AppTab.WATCHLIST -> AppTab.LIBRARY
+            AppTab.STREAMING -> AppTab.DISCOVER
+            AppTab.ACCOUNT -> AppTab.SETTINGS
             else -> tab
         }
         _currentTab.value = targetTab
@@ -189,7 +203,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * WuPlay Direct Play: Resolves the best stream automatically in the background
+     * Stremio Direct Play: Resolves the best stream automatically in the background
      * and jumps immediately to PlayerScreen without prompting for stream selection.
      */
     fun playDirect(meta: MetaDetail, episode: VideoEpisode? = null) {
@@ -202,11 +216,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     ?: streams.firstOrNull { it.quality?.contains("4K", ignoreCase = true) == true }
                     ?: streams.firstOrNull()
                     ?: StreamItem(
-                        title = "WuPlay Direct Fast Stream",
-                        name = "WuPlay Fast Stream Engine",
+                        title = "Stremio Direct Fast Stream",
+                        name = "Stremio Fast Stream Engine",
                         url = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
                         quality = "1080p",
-                        addonName = "WuPlay Core"
+                        addonName = "Stremio Official"
                     )
 
                 val resumePos = getContinueWatchingPosition(meta.id)
@@ -244,8 +258,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 true
             }
             is ScreenDestination.Tabs -> {
-                if (_currentTab.value != AppTab.DISCOVER) {
-                    _currentTab.value = AppTab.DISCOVER
+                if (_currentTab.value != AppTab.BOARD) {
+                    _currentTab.value = AppTab.BOARD
                     true
                 } else {
                     false
@@ -335,11 +349,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val results = addonRepository.searchAllAddons(query, _searchFilterType.value)
                 _searchResults.value = results
+                if (query.trim().length >= 2 && results.isNotEmpty()) {
+                    searchHistoryRepository.saveSearchQuery(query)
+                }
             } catch (e: Exception) {
                 Log.e("MainViewModel", "Search error", e)
             } finally {
                 _isSearching.value = false
             }
+        }
+    }
+
+    fun saveSearchQuery(query: String) {
+        viewModelScope.launch {
+            searchHistoryRepository.saveSearchQuery(query)
+        }
+    }
+
+    fun removeSearchQuery(query: String) {
+        viewModelScope.launch {
+            searchHistoryRepository.removeSearchQuery(query)
+        }
+    }
+
+    fun clearRecentSearches() {
+        viewModelScope.launch {
+            searchHistoryRepository.clearSearchHistory()
         }
     }
 
@@ -473,6 +508,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setBufferCacheSeconds(seconds: Int) {
         playbackSettingsManager.setBufferCacheSeconds(seconds)
+    }
+
+    fun setDebridProvider(provider: String) {
+        playbackSettingsManager.setDebridProvider(provider)
+    }
+
+    fun setDebridApiKey(key: String) {
+        playbackSettingsManager.setDebridApiKey(key)
     }
 
     fun resetPlaybackSettings() {

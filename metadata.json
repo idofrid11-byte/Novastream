@@ -1,6 +1,6 @@
 {
-  "name": "WuPlay",
-  "description": "WuPlay - Next-generation media streaming hub with direct auto-playback, streaming services catalog, cloud watchlist, and comprehensive player settings.",
+  "name": "Stremio",
+  "description": "Stremio - Next-generation media streaming hub with community addons, discover catalogs, personal library, and advanced media player.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

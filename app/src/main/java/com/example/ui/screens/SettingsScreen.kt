@@ -65,7 +65,7 @@ fun SettingsScreen(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "WuPlay",
+                                text = "Stremio",
                                 color = Color.White,
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold
@@ -73,7 +73,7 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Settings",
-                                color = WuPlayCyan,
+                                color = StremioPurpleLight,
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -411,9 +411,9 @@ fun SettingsScreen(
             // 2. WUPLAY CLOUD ACCOUNT & WATCHLIST SYNC
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CloudSync, contentDescription = null, tint = WuPlayCyan, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.CloudSync, contentDescription = null, tint = StremioPurpleLight, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("WuPlay Cloud & Watchlist Sync", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("Stremio Account & Cloud Sync", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -422,7 +422,7 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = StreamCard),
                     border = CardDefaults.outlinedCardBorder().copy(
-                        brush = Brush.horizontalGradient(listOf(WuPlayPurple, WuPlayCyan))
+                        brush = Brush.horizontalGradient(listOf(StremioPurple, StremioPurpleLight))
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -437,15 +437,15 @@ fun SettingsScreen(
                                     modifier = Modifier
                                         .size(48.dp)
                                         .clip(CircleShape)
-                                        .background(WuPlayPurple.copy(alpha = 0.3f)),
+                                        .background(StremioPurple.copy(alpha = 0.3f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.AccountCircle, contentDescription = null, tint = WuPlayCyan, modifier = Modifier.size(36.dp))
+                                    Icon(Icons.Default.AccountCircle, contentDescription = null, tint = StremioPurpleLight, modifier = Modifier.size(36.dp))
                                 }
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = currentUser?.displayName ?: "WuPlay Member",
+                                        text = currentUser?.displayName ?: "Stremio Member",
                                         color = Color.White,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold
@@ -527,12 +527,108 @@ fun SettingsScreen(
                 }
             }
 
-            // 3. ADDON ENGINE SUMMARY & MANAGEMENT
+            // 3. DEBRID CLOUD STREAMING ENGINE (P2P-to-HTTP)
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Extension, contentDescription = null, tint = WuPlayPurple, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.CloudDownload, contentDescription = null, tint = WuPlayCyan, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("WuPlay Addon Engine", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("Debrid Cloud Engine (Direct HTTP)", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = StreamCard),
+                    border = CardDefaults.outlinedCardBorder().copy(
+                        brush = Brush.horizontalGradient(listOf(StreamBorder, WuPlayCyan))
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Debrid Cloud Provider", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Bypasses P2P downloading via high-speed cloud unrestricted streams", color = TextSecondary, fontSize = 11.sp)
+                            }
+                        }
+
+                        // Provider Chips
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            val providers = listOf(
+                                "none" to "None (Direct / Free)",
+                                "realdebrid" to "Real-Debrid",
+                                "alldebrid" to "AllDebrid",
+                                "torbox" to "Torbox"
+                            )
+                            providers.forEach { (key, label) ->
+                                val isSelected = playbackSettings.debridProvider == key
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { viewModel.setDebridProvider(key) },
+                                    label = { Text(label, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = WuPlayCyan,
+                                        selectedLabelColor = Color.Black,
+                                        containerColor = StreamSurfaceVariant,
+                                        labelColor = TextSecondary
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        enabled = true,
+                                        selected = isSelected,
+                                        borderColor = StreamBorder,
+                                        selectedBorderColor = WuPlayCyan
+                                    )
+                                )
+                            }
+                        }
+
+                        if (playbackSettings.debridProvider != "none") {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            var tempKey by remember(playbackSettings.debridApiKey) { mutableStateOf(playbackSettings.debridApiKey) }
+
+                            OutlinedTextField(
+                                value = tempKey,
+                                onValueChange = {
+                                    tempKey = it
+                                    viewModel.setDebridApiKey(it)
+                                },
+                                label = { Text("API Token / Key", color = TextSecondary, fontSize = 12.sp) },
+                                placeholder = { Text("Enter private token...", color = TextMuted, fontSize = 12.sp) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("debrid_api_key_field"),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = StreamSurfaceVariant,
+                                    unfocusedContainerColor = StreamSurfaceVariant,
+                                    focusedBorderColor = WuPlayCyan,
+                                    unfocusedBorderColor = StreamBorder,
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                ),
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 4. ADDON ENGINE SUMMARY & MANAGEMENT
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Extension, contentDescription = null, tint = StremioPurple, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Stremio Addon Engine (JSON API)", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -555,7 +651,7 @@ fun SettingsScreen(
                             Surface(color = StreamSurfaceVariant, shape = RoundedCornerShape(8.dp)) {
                                 Text(
                                     text = "${installedAddons.count { it.isEnabled }} Installed",
-                                    color = WuPlayCyan,
+                                    color = StremioPurpleLight,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -572,11 +668,11 @@ fun SettingsScreen(
                         ) {
                             installedAddons.forEach { addon ->
                                 Surface(
-                                    color = if (addon.isEnabled) WuPlayPurple.copy(alpha = 0.25f) else StreamSurfaceVariant,
+                                    color = if (addon.isEnabled) StremioPurple.copy(alpha = 0.25f) else StreamSurfaceVariant,
                                     shape = RoundedCornerShape(8.dp),
                                     border = ButtonDefaults.outlinedButtonBorder.copy(
                                         brush = Brush.horizontalGradient(
-                                            if (addon.isEnabled) listOf(WuPlayPurple, WuPlayCyan) else listOf(StreamBorder, StreamBorder)
+                                            if (addon.isEnabled) listOf(StremioPurple, StremioPurpleLight) else listOf(StreamBorder, StreamBorder)
                                         )
                                     )
                                 ) {
@@ -614,6 +710,32 @@ fun SettingsScreen(
                 }
             }
 
+            // 5. LEGAL & CONTENT-AGNOSTIC ARCHITECTURE NOTICE
+            item {
+                Card(
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = StreamSurfaceVariant.copy(alpha = 0.5f)),
+                    border = CardDefaults.outlinedCardBorder().copy(
+                        brush = Brush.horizontalGradient(listOf(StreamBorder, StreamBorder))
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Security, contentDescription = null, tint = StremioPurpleLight, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Content-Agnostic Architecture", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text(
+                            text = "Stremio does not host, stream, or distribute media content. The app functions as a decentralized media player interface connecting via standard Stremio Addon JSON specifications and public open-source metadata services.",
+                            color = TextSecondary,
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+            }
+
             item { Spacer(modifier = Modifier.height(30.dp)) }
         }
     }
@@ -621,7 +743,7 @@ fun SettingsScreen(
     if (showSignOutDialog) {
         AlertDialog(
             onDismissRequest = { showSignOutDialog = false },
-            title = { Text("Sign Out of WuPlay?", color = Color.White, fontWeight = FontWeight.Bold) },
+            title = { Text("Sign Out of Stremio?", color = Color.White, fontWeight = FontWeight.Bold) },
             text = { Text("Your local saved items and progress will remain intact on this device.", color = TextSecondary) },
             confirmButton = {
                 Button(

@@ -16,7 +16,9 @@ data class PlaybackSettings(
     val subtitleFontSize: Int = 18,
     val subtitleStyle: String = "box",
     val audioPassthrough: Boolean = false,
-    val bufferCacheSeconds: Int = 60
+    val bufferCacheSeconds: Int = 60,
+    val debridProvider: String = "none",
+    val debridApiKey: String = ""
 )
 
 class PlaybackSettingsManager(context: Context) {
@@ -36,7 +38,9 @@ class PlaybackSettingsManager(context: Context) {
             subtitleFontSize = prefs.getInt("subtitle_font_size", 18),
             subtitleStyle = prefs.getString("subtitle_style", "box") ?: "box",
             audioPassthrough = prefs.getBoolean("audio_passthrough", false),
-            bufferCacheSeconds = prefs.getInt("buffer_cache_sec", 60)
+            bufferCacheSeconds = prefs.getInt("buffer_cache_sec", 60),
+            debridProvider = prefs.getString("debrid_provider", "none") ?: "none",
+            debridApiKey = prefs.getString("debrid_api_key", "") ?: ""
         )
     }
 
@@ -88,6 +92,16 @@ class PlaybackSettingsManager(context: Context) {
     fun setBufferCacheSeconds(seconds: Int) {
         prefs.edit().putInt("buffer_cache_sec", seconds).apply()
         _settings.value = _settings.value.copy(bufferCacheSeconds = seconds)
+    }
+
+    fun setDebridProvider(provider: String) {
+        prefs.edit().putString("debrid_provider", provider).apply()
+        _settings.value = _settings.value.copy(debridProvider = provider)
+    }
+
+    fun setDebridApiKey(key: String) {
+        prefs.edit().putString("debrid_api_key", key).apply()
+        _settings.value = _settings.value.copy(debridApiKey = key)
     }
 
     fun resetToDefaults() {

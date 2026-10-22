@@ -316,7 +316,7 @@ fun HeroBanner(
                 Button(
                     onClick = onPlayClick,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = WuPlayPurple,
+                        containerColor = StremioPurple,
                         contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(10.dp),

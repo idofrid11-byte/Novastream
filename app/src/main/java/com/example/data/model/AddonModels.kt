@@ -102,7 +102,20 @@ data class MetaItem(
     val genres: List<String>? = null,
     @Transient var addonName: String? = null,
     @Transient var addonId: String? = null
-)
+) {
+    fun toMetaDetail() = MetaDetail(
+        id = id,
+        type = type,
+        name = name,
+        poster = poster,
+        background = background,
+        logo = logo,
+        description = description,
+        releaseInfo = releaseInfo,
+        imdbRating = imdbRating,
+        genres = genres
+    )
+}
 
 @JsonClass(generateAdapter = true)
 data class MetaDetail(

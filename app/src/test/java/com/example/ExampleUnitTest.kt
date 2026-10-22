@@ -84,5 +84,12 @@ class ExampleUnitTest {
         assertTrue(cues.first().text.isNotBlank())
         assertTrue(cues.first().startMs < cues.first().endMs)
     }
+
+    @Test
+    fun testRecentSearchEntity() {
+        val search = com.example.data.db.RecentSearch(query = "Stranger Things", timestamp = 12345L)
+        assertEquals("Stranger Things", search.query)
+        assertEquals(12345L, search.timestamp)
+    }
 }
 

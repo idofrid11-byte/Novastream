@@ -2,29 +2,43 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// WuPlay Signature Cinematic Theme Palette
-val StreamBg = Color(0xFF090A10)
-val StreamSurface = Color(0xFF10121D)
-val StreamSurfaceVariant = Color(0xFF181B2B)
-val StreamCard = Color(0xFF151726)
-val StreamBorder = Color(0xFF262A42)
-val StreamBorderGlow = Color(0xFF3F3B77)
+// Official Stremio Color System
+val StremioBg = Color(0xFF0E0C1C)
+val StremioDark = Color(0xFF16122A)
+val StremioSurface = Color(0xFF1E1C2E)
+val StremioSurfaceVariant = Color(0xFF2B293F)
+val StremioBorder = Color(0xFF3D3660)
+val StremioBorderGlow = Color(0xFF5848A0)
 
-// WuPlay Neon Brand Accents
-val WuPlayPurple = Color(0xFF7C4DFF)
-val WuPlayPurpleDeep = Color(0xFF651FFF)
-val WuPlayCyan = Color(0xFF00E5FF)
+// Stremio Signature Accents
+val StremioPurple = Color(0xFF7B5BF5)
+val StremioPurpleDeep = Color(0xFF5848A0)
+val StremioPurpleLight = Color(0xFF9B7FFF)
+val StremioPurpleSoft = Color(0xFFC4B5FD)
+val StremioCyan = Color(0xFF00E5FF)
+val StremioIMDb = Color(0xFFF5C518)
+
+// Compatibility aliases
+val StreamBg = StremioBg
+val StreamSurface = StremioSurface
+val StreamSurfaceVariant = StremioSurfaceVariant
+val StreamCard = StremioDark
+val StreamBorder = StremioBorder
+val StreamBorderGlow = StremioBorderGlow
+
+val WuPlayPurple = StremioPurple
+val WuPlayPurpleDeep = StremioPurpleDeep
+val WuPlayCyan = StremioCyan
 val WuPlayCyanGlow = Color(0xFF18FFFF)
 
-// Aliases for compatibility
-val StreamPurple = WuPlayPurple
-val StreamCyan = WuPlayCyan
+val StreamPurple = StremioPurple
+val StreamCyan = StremioCyan
 val StreamCyanDim = Color(0xFF00B4D8)
 val StreamCoral = Color(0xFFFF2A6D)
-val StreamGold = Color(0xFFFFB800)
+val StreamGold = StremioIMDb
 val StreamGreen = Color(0xFF00E676)
 
-// Streaming Services Brand Colors
+// Brand Catalogs
 val BrandNetflix = Color(0xFFE50914)
 val BrandAppleTv = Color(0xFFE5E7EB)
 val BrandDisney = Color(0xFF113CCF)
@@ -33,7 +47,7 @@ val BrandPrime = Color(0xFF00A8E1)
 val BrandParamount = Color(0xFF0064FF)
 val BrandHulu = Color(0xFF1CE783)
 
-// Text Colors
-val TextPrimary = Color(0xFFF6F8FD)
-val TextSecondary = Color(0xFFA6ADC9)
-val TextMuted = Color(0xFF6E7596)
+// Stremio Typography Colors
+val TextPrimary = Color(0xFFFFFFFF)
+val TextSecondary = Color(0xFFA89ECC)
+val TextMuted = Color(0xFF8B7FAA)

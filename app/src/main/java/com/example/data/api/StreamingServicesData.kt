@@ -392,18 +392,18 @@ object StreamingServicesData {
 
         return listOf(
             StreamItem(
-                title = "WuPlay Auto-Play Direct CDN [4K UHD HDR]",
-                name = "WuPlay Fast Stream Engine",
+                title = "Stremio Auto-Play Direct CDN [4K UHD HDR]",
+                name = "Stremio Fast Stream Engine",
                 url = streamUrl,
                 quality = "4K UHD",
-                addonName = "WuPlay Stream Resolver"
+                addonName = "Stremio Official CDN"
             ),
             StreamItem(
-                title = "WuPlay High-Speed 1080p Mirror",
-                name = "WuPlay CDN",
+                title = "Stremio High-Speed 1080p Mirror",
+                name = "Stremio CDN",
                 url = streamUrl,
                 quality = "1080p",
-                addonName = "WuPlay Stream Resolver"
+                addonName = "Stremio Official CDN"
             )
         )
     }

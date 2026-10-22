@@ -1,7 +1,8 @@
 package com.example.ui.screens
 
+import android.content.Intent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -11,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -21,19 +23,32 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.R
 import com.example.data.model.MetaDetail
+import com.example.data.model.StreamItem
 import com.example.data.model.VideoEpisode
 import com.example.data.model.WatchStatus
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MainViewModel
 
+/**
+ * Stremio MetaDetails Screen
+ * Faithfully mirrors the MetaDetails route from official Stremio Web.
+ * Features:
+ * - Full-bleed cinematic backdrop with multi-stop gradient
+ * - Stremio Logo & Title header with IMDb gold rating badge
+ * - Primary "Play / Resume" action + "Add to Library" + "Share"
+ * - Season & Episode Picker (for Series)
+ * - Available Streams List (resolution, provider, direct stream launch)
+ */
 @Composable
 fun DetailScreen(
     id: String,
@@ -42,9 +57,11 @@ fun DetailScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val meta by viewModel.currentMeta.collectAsState()
     val isLoadingMeta by viewModel.isLoadingDetail.collectAsState()
     val isDirectPlaying by viewModel.isDirectPlaying.collectAsState()
+    val currentStreams by viewModel.currentStreams.collectAsState()
     val selectedSeason by viewModel.selectedSeason.collectAsState()
     val libraryItems by viewModel.libraryItems.collectAsState()
     val watchedEpisodes by viewModel.watchedEpisodes.collectAsState()
@@ -64,7 +81,6 @@ fun DetailScreen(
     var selectedEpisode by remember { mutableStateOf<VideoEpisode?>(null) }
     var isDescriptionExpanded by remember { mutableStateOf(false) }
 
-    // Auto-select initial episode for series
     LaunchedEffect(meta) {
         if (meta?.type == "series" && !meta?.videos.isNullOrEmpty()) {
             selectedEpisode = meta!!.videos!!.first()
@@ -72,7 +88,7 @@ fun DetailScreen(
     }
 
     Scaffold(
-        containerColor = StreamBg,
+        containerColor = StremioBg,
         modifier = modifier.testTag("detail_screen")
     ) { innerPadding ->
         if (isLoadingMeta && meta == null) {
@@ -83,9 +99,14 @@ fun DetailScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = WuPlayPurple, strokeWidth = 3.dp)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text("Loading WuPlay Title...", color = TextSecondary, fontSize = 13.sp)
+                    CircularProgressIndicator(color = StremioPurple, strokeWidth = 3.dp)
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = "Loading Stremio Details...",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        fontFamily = StremioFontFamily
+                    )
                 }
             }
         } else if (meta == null) {
@@ -96,15 +117,29 @@ fun DetailScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = StreamCoral, modifier = Modifier.size(40.dp))
+                    Icon(
+                        imageVector = Icons.Default.ErrorOutline,
+                        contentDescription = null,
+                        tint = StreamCoral,
+                        modifier = Modifier.size(40.dp)
+                    )
                     Spacer(modifier = Modifier.height(10.dp))
-                    Text("Could not load title details", color = TextSecondary, fontSize = 14.sp)
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Could not load title details",
+                        color = TextSecondary,
+                        fontSize = 14.sp,
+                        fontFamily = StremioFontFamily
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
                     Button(
                         onClick = onBack,
-                        colors = ButtonDefaults.buttonColors(containerColor = WuPlayPurple, contentColor = Color.White)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = StremioPurple,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("Go Back")
+                        Text("Go Back", fontFamily = StremioFontFamily)
                     }
                 }
             }
@@ -122,23 +157,21 @@ fun DetailScreen(
                 mutableIntStateOf(if (selectedSeason in seasonNumbers) selectedSeason else (seasonNumbers.firstOrNull() ?: 1))
             }
             val currentSeasonEpisodes = episodesBySeason[activeSeasonNum] ?: emptyList()
-            val currentSeasonTitle = currentSeasonEpisodes.firstOrNull()?.seasonTitle ?: "Season $activeSeasonNum"
 
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(bottom = innerPadding.calculateBottomPadding())
             ) {
-                // 1. EXPANDED LARGE BACKDROP with Multi-Stop Cinematic Gradient
+                // 1. Full-Bleed Cinematic Backdrop Header
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(480.dp)
+                            .height(420.dp)
                             .testTag("detail_backdrop_box")
                     ) {
                         val backdropUrl = item.background ?: item.poster
-
                         if (!backdropUrl.isNullOrEmpty()) {
                             AsyncImage(
                                 model = backdropUrl,
@@ -150,103 +183,104 @@ fun DetailScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .background(StreamSurfaceVariant)
+                                    .background(StremioSurfaceVariant)
                             )
                         }
 
-                        // Cinematic multi-stop gradient scrim
+                        // Gradient Scrim
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .background(
                                     Brush.verticalGradient(
-                                        0.0f to Color.Black.copy(alpha = 0.70f),
-                                        0.20f to Color.Transparent,
-                                        0.50f to Color.Transparent,
-                                        0.70f to StreamBg.copy(alpha = 0.75f),
-                                        0.88f to StreamBg.copy(alpha = 0.95f),
-                                        1.0f to StreamBg
+                                        colorStops = arrayOf(
+                                            0.0f to Color.Black.copy(alpha = 0.5f),
+                                            0.5f to Color.Transparent,
+                                            0.8f to StremioBg.copy(alpha = 0.75f),
+                                            1.0f to StremioBg
+                                        )
                                     )
                                 )
                         )
 
-                        // Top Action Bar
+                        // Top Navigation Actions
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .statusBarsPadding()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             IconButton(
                                 onClick = onBack,
                                 modifier = Modifier
-                                    .size(42.dp)
+                                    .size(38.dp)
                                     .clip(CircleShape)
-                                    .background(Color.Black.copy(alpha = 0.65f))
+                                    .background(Color.Black.copy(alpha = 0.6f))
                                     .testTag("detail_back_button")
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.ArrowBack,
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                     contentDescription = "Back",
-                                    tint = Color.White
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
 
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                // Watched toggle for movies
-                                if (item.type != "series") {
-                                    IconButton(
-                                        onClick = { viewModel.toggleMovieWatched(item) },
-                                        modifier = Modifier
-                                            .size(42.dp)
-                                            .clip(CircleShape)
-                                            .background(if (isMovieWatched) StreamGreen.copy(alpha = 0.35f) else Color.Black.copy(alpha = 0.65f))
-                                            .border(1.dp, if (isMovieWatched) StreamGreen else Color.Transparent, CircleShape)
-                                            .testTag("detail_movie_watched_toggle")
-                                    ) {
-                                        Icon(
-                                            imageVector = if (isMovieWatched) Icons.Default.CheckCircle else Icons.Outlined.CheckCircle,
-                                            contentDescription = if (isMovieWatched) "Watched" else "Mark as Watched",
-                                            tint = if (isMovieWatched) StreamGreen else Color.White
-                                        )
-                                    }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                // Share Button
+                                IconButton(
+                                    onClick = {
+                                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                            setType("text/plain")
+                                            putExtra(Intent.EXTRA_SUBJECT, item.name)
+                                            putExtra(Intent.EXTRA_TEXT, "Watch ${item.name} on Stremio: https://strem.io")
+                                        }
+                                        context.startActivity(Intent.createChooser(shareIntent, "Share with"))
+                                    },
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Black.copy(alpha = 0.6f))
+                                        .testTag("share_title_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Share,
+                                        contentDescription = "Share",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                 }
 
-                                // Watchlist toggle button
+                                // Bookmark in Library Toggle
                                 IconButton(
                                     onClick = { viewModel.toggleLibrary(item, WatchStatus.PLAN_TO_WATCH) },
                                     modifier = Modifier
-                                        .size(42.dp)
+                                        .size(38.dp)
                                         .clip(CircleShape)
-                                        .background(if (isSaved) WuPlayPurple.copy(alpha = 0.35f) else Color.Black.copy(alpha = 0.65f))
-                                        .border(1.dp, if (isSaved) WuPlayPurple else Color.Transparent, CircleShape)
+                                        .background(
+                                            if (isSaved) StremioPurple else Color.Black.copy(alpha = 0.6f)
+                                        )
                                         .testTag("detail_library_toggle")
                                 ) {
                                     Icon(
                                         imageVector = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                        contentDescription = "Bookmark",
-                                        tint = if (isSaved) WuPlayCyan else Color.White
+                                        contentDescription = "Library",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
                             }
                         }
 
-                        // Big Central Play Trigger Overlay
+                        // Center Play Button with Stremio Glow
                         Box(
                             modifier = Modifier
                                 .align(Alignment.Center)
-                                .size(72.dp)
+                                .size(68.dp)
                                 .clip(CircleShape)
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(WuPlayPurple, WuPlayCyan)
-                                    )
-                                )
+                                .background(StremioPurple)
                                 .clickable {
                                     val targetEp = if (item.type == "series") selectedEpisode ?: item.videos?.firstOrNull() else null
                                     viewModel.playDirect(item, targetEp)
@@ -254,20 +288,20 @@ fun DetailScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             if (isDirectPlaying) {
-                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(32.dp), strokeWidth = 3.dp)
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(30.dp), strokeWidth = 3.dp)
                             } else {
                                 Icon(
                                     imageVector = Icons.Default.PlayArrow,
                                     contentDescription = "Play",
                                     tint = Color.White,
-                                    modifier = Modifier.size(42.dp)
+                                    modifier = Modifier.size(40.dp)
                                 )
                             }
                         }
                     }
                 }
 
-                // 2. Title, Badges, Direct Play Action & Metadata
+                // 2. Title, Badges, Direct Play & Meta Information
                 item {
                     Column(
                         modifier = Modifier
@@ -277,96 +311,103 @@ fun DetailScreen(
                         Text(
                             text = item.name,
                             color = Color.White,
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = StremioFontFamily
                         )
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                        // Metadata Badges Row
+                        // Stremio Metadata Badges
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             if (!item.imdbRating.isNullOrEmpty()) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(StreamSurfaceVariant)
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                Surface(
+                                    color = StremioIMDb,
+                                    shape = RoundedCornerShape(4.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Star,
-                                        contentDescription = null,
-                                        tint = StreamGold,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = item.imdbRating,
-                                        color = Color.White,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Star,
+                                            contentDescription = null,
+                                            tint = Color.Black,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text(
+                                            text = item.imdbRating,
+                                            color = Color.Black,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Black,
+                                            fontFamily = StremioFontFamily
+                                        )
+                                    }
                                 }
                             }
 
                             if (!item.releaseInfo.isNullOrEmpty()) {
                                 Surface(
-                                    color = StreamSurfaceVariant,
-                                    shape = RoundedCornerShape(6.dp)
+                                    color = StremioSurfaceVariant,
+                                    shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
                                         text = item.releaseInfo,
                                         color = TextSecondary,
-                                        fontSize = 12.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Medium,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        fontFamily = StremioFontFamily,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
                             }
 
                             if (!item.runtime.isNullOrEmpty()) {
                                 Surface(
-                                    color = StreamSurfaceVariant,
-                                    shape = RoundedCornerShape(6.dp)
+                                    color = StremioSurfaceVariant,
+                                    shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
                                         text = item.runtime,
                                         color = TextSecondary,
-                                        fontSize = 12.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Medium,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        fontFamily = StremioFontFamily,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
                             }
 
                             Surface(
-                                color = WuPlayPurple.copy(alpha = 0.25f),
-                                shape = RoundedCornerShape(6.dp)
+                                color = StremioPurple.copy(alpha = 0.25f),
+                                shape = RoundedCornerShape(4.dp)
                             ) {
                                 Text(
                                     text = item.type.uppercase(),
-                                    color = WuPlayCyan,
+                                    color = StremioPurpleLight,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    fontFamily = StremioFontFamily,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // PRIMARY DIRECT PLAY ACTION (WuPlay One-Click Instant Play)
+                        // Primary Play Button
                         val playButtonText = when {
-                            isDirectPlaying -> "Resolving WuPlay Stream..."
+                            isDirectPlaying -> "Resolving Stremio Stream..."
                             item.type == "series" -> {
                                 val ep = selectedEpisode ?: item.videos?.firstOrNull()
                                 if (ep != null) "Watch S${ep.season}:E${ep.episode} • ${ep.title}" else "Watch Series"
                             }
                             resumePositionMs > 0 -> "Resume Movie"
-                            else -> "Watch Movie Now"
+                            else -> "Watch Now"
                         }
 
                         Button(
@@ -375,37 +416,34 @@ fun DetailScreen(
                                 viewModel.playDirect(item, targetEp)
                             },
                             enabled = !isDirectPlaying,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = WuPlayPurple,
+                                containerColor = StremioPurple,
                                 contentColor = Color.White
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(50.dp)
+                                .height(48.dp)
                                 .testTag("direct_play_button")
                         ) {
                             if (isDirectPlaying) {
                                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                                 Spacer(modifier = Modifier.width(8.dp))
                             } else {
-                                Icon(
-                                    imageVector = Icons.Default.PlayArrow,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(24.dp)
-                                )
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(22.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                             }
                             Text(
                                 text = playButtonText,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = StremioFontFamily
                             )
                         }
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Secondary Action Buttons Row (Mark Watched, Add to Watchlist)
+                        // Secondary Actions (Library & Mark Watched)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -419,14 +457,13 @@ fun DetailScreen(
                                     ),
                                     shape = RoundedCornerShape(10.dp),
                                     border = ButtonDefaults.outlinedButtonBorder.copy(
-                                        brush = Brush.horizontalGradient(
-                                            if (isMovieWatched) listOf(StreamGreen, StreamGreen) else listOf(StreamBorder, StreamBorder)
+                                        brush = androidx.compose.ui.graphics.SolidColor(
+                                            if (isMovieWatched) StreamGreen else StremioBorder
                                         )
                                     ),
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(42.dp)
-                                        .testTag("mark_movie_watched_btn")
+                                        .height(40.dp)
                                 ) {
                                     Icon(
                                         imageVector = if (isMovieWatched) Icons.Default.CheckCircle else Icons.Default.Check,
@@ -437,63 +474,70 @@ fun DetailScreen(
                                     Text(
                                         text = if (isMovieWatched) "Watched ✓" else "Mark Watched",
                                         fontWeight = FontWeight.SemiBold,
-                                        fontSize = 12.sp
+                                        fontSize = 12.sp,
+                                        fontFamily = StremioFontFamily
                                     )
                                 }
                             }
 
-                            // Watchlist Button
                             OutlinedButton(
                                 onClick = { viewModel.toggleLibrary(item, WatchStatus.PLAN_TO_WATCH) },
                                 shape = RoundedCornerShape(10.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = if (isSaved) WuPlayCyan else TextSecondary
+                                    contentColor = if (isSaved) StremioPurpleLight else TextSecondary
                                 ),
                                 border = ButtonDefaults.outlinedButtonBorder.copy(
-                                    brush = Brush.horizontalGradient(
-                                        if (isSaved) listOf(WuPlayPurple, WuPlayCyan) else listOf(StreamBorder, StreamBorder)
+                                    brush = androidx.compose.ui.graphics.SolidColor(
+                                        if (isSaved) StremioPurple else StremioBorder
                                     )
                                 ),
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(42.dp)
-                                    .testTag("detail_library_button")
+                                    .height(40.dp)
+                                    .testTag("detail_watchlist_button")
                             ) {
                                 Icon(
-                                    imageVector = if (isSaved) Icons.Default.BookmarkAdded else Icons.Default.BookmarkAdd,
+                                    imageVector = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                                     contentDescription = null,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = if (isSaved) "In Watchlist" else "+ Watchlist",
+                                    text = if (isSaved) "In Library ✓" else "+ Library",
                                     fontWeight = FontWeight.SemiBold,
-                                    fontSize = 12.sp
+                                    fontSize = 12.sp,
+                                    fontFamily = StremioFontFamily
                                 )
                             }
                         }
 
-                        // Genres
+                        // Genres Pills
                         if (!item.genres.isNullOrEmpty()) {
                             Spacer(modifier = Modifier.height(14.dp))
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                item.genres.forEach { g ->
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(StreamSurfaceVariant)
-                                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                                item.genres.forEach { genre ->
+                                    Surface(
+                                        color = StremioSurfaceVariant,
+                                        shape = RoundedCornerShape(14.dp)
                                     ) {
-                                        Text(text = g, color = TextSecondary, fontSize = 11.sp)
+                                        Text(
+                                            text = genre,
+                                            color = TextSecondary,
+                                            fontSize = 11.sp,
+                                            fontFamily = StremioFontFamily,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                        )
                                     }
                                 }
                             }
                         }
 
-                        // Overview / Synopsis
+                        // Description / Synopsis
                         if (!item.description.isNullOrEmpty()) {
                             Spacer(modifier = Modifier.height(14.dp))
                             Text(
@@ -503,14 +547,16 @@ fun DetailScreen(
                                 lineHeight = 19.sp,
                                 maxLines = if (isDescriptionExpanded) 12 else 3,
                                 overflow = TextOverflow.Ellipsis,
+                                fontFamily = StremioFontFamily,
                                 modifier = Modifier.clickable { isDescriptionExpanded = !isDescriptionExpanded }
                             )
                             if (item.description.length > 120) {
                                 Text(
                                     text = if (isDescriptionExpanded) "Show Less" else "Read More",
-                                    color = WuPlayCyan,
+                                    color = StremioPurpleLight,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
+                                    fontFamily = StremioFontFamily,
                                     modifier = Modifier
                                         .padding(top = 4.dp)
                                         .clickable { isDescriptionExpanded = !isDescriptionExpanded }
@@ -525,30 +571,31 @@ fun DetailScreen(
                                 Text(
                                     text = "Director: ${item.director.joinToString(", ")}",
                                     color = TextMuted,
-                                    fontSize = 12.sp
+                                    fontSize = 12.sp,
+                                    fontFamily = StremioFontFamily
                                 )
                             }
                             if (!item.cast.isNullOrEmpty()) {
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "Starring: ${item.cast.take(4).joinToString(", ")}",
+                                    text = "Cast: ${item.cast.take(4).joinToString(", ")}",
                                     color = TextMuted,
-                                    fontSize = 12.sp
+                                    fontSize = 12.sp,
+                                    fontFamily = StremioFontFamily
                                 )
                             }
                         }
                     }
                 }
 
-                // 3. SEASONS, SEASON TITLES & EPISODES (Direct Play on Episode Tap)
+                // 3. For Series: Seasons & Episodes Picker
                 if (item.type == "series" && !item.videos.isNullOrEmpty()) {
                     item {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 24.dp)
+                                .padding(top = 22.dp)
                         ) {
-                            // Section Header with Total Seasons / Episodes Count
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -556,36 +603,22 @@ fun DetailScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Tv,
-                                        contentDescription = null,
-                                        tint = WuPlayCyan,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Seasons & Episodes",
-                                        color = Color.White,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Surface(
-                                    color = StreamSurfaceVariant,
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text(
-                                        text = "${seasonNumbers.size} Seasons • ${item.videos.size} Episodes",
-                                        color = TextSecondary,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                    )
-                                }
+                                Text(
+                                    text = "Episodes",
+                                    color = Color.White,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = StremioFontFamily
+                                )
+                                Text(
+                                    text = "${seasonNumbers.size} Seasons",
+                                    color = TextMuted,
+                                    fontSize = 12.sp,
+                                    fontFamily = StremioFontFamily
+                                )
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
 
                             // Horizontal Season Selector Tabs
                             Row(
@@ -597,115 +630,43 @@ fun DetailScreen(
                             ) {
                                 seasonNumbers.forEach { sNum ->
                                     val isSelected = activeSeasonNum == sNum
-                                    val seasonEps = episodesBySeason[sNum] ?: emptyList()
-                                    val allSeasonWatched = seasonEps.isNotEmpty() && seasonEps.all { watchedEpisodes.contains(it.id) }
-
                                     FilterChip(
                                         selected = isSelected,
                                         onClick = {
                                             activeSeasonNum = sNum
                                             viewModel.selectSeason(sNum)
-                                            val firstInSeason = seasonEps.firstOrNull()
+                                            val firstInSeason = episodesBySeason[sNum]?.firstOrNull()
                                             if (firstInSeason != null) {
                                                 selectedEpisode = firstInSeason
                                             }
                                         },
                                         label = {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(
-                                                    text = "Season $sNum",
-                                                    fontSize = 12.sp,
-                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                                )
-                                                if (allSeasonWatched) {
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Icon(
-                                                        imageVector = Icons.Default.Check,
-                                                        contentDescription = "Season Watched",
-                                                        tint = if (isSelected) Color.White else StreamGreen,
-                                                        modifier = Modifier.size(13.dp)
-                                                    )
-                                                }
-                                            }
+                                            Text(
+                                                text = "Season $sNum",
+                                                fontSize = 12.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                fontFamily = StremioFontFamily
+                                            )
                                         },
                                         colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = WuPlayPurple,
+                                            selectedContainerColor = StremioPurple,
                                             selectedLabelColor = Color.White,
-                                            containerColor = StreamSurfaceVariant,
+                                            containerColor = StremioSurfaceVariant,
                                             labelColor = TextSecondary
                                         ),
                                         border = FilterChipDefaults.filterChipBorder(
                                             enabled = true,
                                             selected = isSelected,
-                                            borderColor = StreamBorder,
-                                            selectedBorderColor = WuPlayPurple
-                                        ),
-                                        modifier = Modifier.testTag("season_chip_$sNum")
+                                            borderColor = StremioBorder,
+                                            selectedBorderColor = StremioPurple
+                                        )
                                     )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            // SEASON TITLE & MARK SEASON AS WATCHED ACTION
-                            Card(
-                                shape = RoundedCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(containerColor = StreamCard),
-                                border = CardDefaults.outlinedCardBorder().copy(
-                                    brush = Brush.horizontalGradient(listOf(StreamBorder, StreamBorderGlow))
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = currentSeasonTitle,
-                                            color = Color.White,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Text(
-                                            text = "${currentSeasonEpisodes.size} episodes available",
-                                            color = TextMuted,
-                                            fontSize = 11.sp
-                                        )
-                                    }
-
-                                    val allWatched = currentSeasonEpisodes.isNotEmpty() && currentSeasonEpisodes.all { watchedEpisodes.contains(it.id) }
-                                    TextButton(
-                                        onClick = {
-                                            viewModel.markSeasonWatched(currentSeasonEpisodes, !allWatched, item)
-                                        },
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = if (allWatched) Icons.Default.CheckCircle else Icons.Outlined.CheckCircle,
-                                            contentDescription = null,
-                                            tint = if (allWatched) StreamGreen else WuPlayCyan,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = if (allWatched) "Season Watched" else "Mark Season",
-                                            color = if (allWatched) StreamGreen else WuPlayCyan,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    }
                                 }
                             }
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // EPISODES LIST (Clicking ANY episode initiates DIRECT PLAYBACK!)
+                            // Episodes List
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -717,20 +678,19 @@ fun DetailScreen(
                                     val isCurrent = selectedEpisode?.id == ep.id
 
                                     Card(
-                                        shape = RoundedCornerShape(12.dp),
+                                        shape = RoundedCornerShape(10.dp),
                                         colors = CardDefaults.cardColors(
-                                            containerColor = if (isCurrent) StreamSurfaceVariant else StreamCard
+                                            containerColor = if (isCurrent) StremioSurfaceVariant else StremioDark
                                         ),
                                         border = CardDefaults.outlinedCardBorder().copy(
-                                            brush = Brush.horizontalGradient(
-                                                if (isCurrent) listOf(WuPlayPurple, WuPlayCyan) else listOf(StreamBorder, StreamBorder)
+                                            brush = androidx.compose.ui.graphics.SolidColor(
+                                                if (isCurrent) StremioPurple else StremioBorder
                                             )
                                         ),
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable {
                                                 selectedEpisode = ep
-                                                // DIRECT PLAY: Tapping episode immediately starts playback!
                                                 viewModel.playDirect(item, ep)
                                             }
                                             .testTag("episode_card_${ep.id}")
@@ -741,12 +701,11 @@ fun DetailScreen(
                                                 .padding(10.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            // Thumbnail Box with Play overlay & S:E badge
                                             Box(
                                                 modifier = Modifier
-                                                    .size(width = 110.dp, height = 70.dp)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(StreamSurface)
+                                                    .size(width = 100.dp, height = 64.dp)
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(StremioSurface)
                                             ) {
                                                 val thumb = ep.thumbnail ?: item.poster
                                                 if (!thumb.isNullOrEmpty()) {
@@ -758,24 +717,6 @@ fun DetailScreen(
                                                     )
                                                 }
 
-                                                // Top-right watched toggle
-                                                IconButton(
-                                                    onClick = { viewModel.toggleEpisodeWatched(ep, item) },
-                                                    modifier = Modifier
-                                                        .align(Alignment.TopEnd)
-                                                        .padding(2.dp)
-                                                        .size(24.dp)
-                                                        .testTag("episode_watch_toggle_${ep.id}")
-                                                ) {
-                                                    Icon(
-                                                        imageVector = if (isEpWatched) Icons.Default.CheckCircle else Icons.Outlined.CheckCircle,
-                                                        contentDescription = "Toggle Watched",
-                                                        tint = if (isEpWatched) StreamGreen else Color.White.copy(alpha = 0.8f),
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                }
-
-                                                // Badge S1E1
                                                 Surface(
                                                     color = Color.Black.copy(alpha = 0.8f),
                                                     shape = RoundedCornerShape(4.dp),
@@ -785,27 +726,11 @@ fun DetailScreen(
                                                 ) {
                                                     Text(
                                                         text = "E${ep.episode}",
-                                                        color = WuPlayCyan,
+                                                        color = StremioPurpleLight,
                                                         fontSize = 10.sp,
                                                         fontWeight = FontWeight.Bold,
+                                                        fontFamily = StremioFontFamily,
                                                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                                    )
-                                                }
-
-                                                // Play glyph
-                                                Box(
-                                                    modifier = Modifier
-                                                        .align(Alignment.Center)
-                                                        .size(28.dp)
-                                                        .clip(CircleShape)
-                                                        .background(WuPlayPurple.copy(alpha = 0.85f)),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.PlayArrow,
-                                                        contentDescription = null,
-                                                        tint = Color.White,
-                                                        modifier = Modifier.size(18.dp)
                                                     )
                                                 }
                                             }
@@ -813,47 +738,179 @@ fun DetailScreen(
                                             Spacer(modifier = Modifier.width(12.dp))
 
                                             Column(modifier = Modifier.weight(1f)) {
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Text(
-                                                        text = ep.title,
-                                                        color = Color.White,
-                                                        fontSize = 13.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis,
-                                                        modifier = Modifier.weight(1f)
-                                                    )
-                                                    if (isEpWatched) {
-                                                        Text(
-                                                            text = "Watched",
-                                                            color = StreamGreen,
-                                                            fontSize = 10.sp,
-                                                            fontWeight = FontWeight.Bold
-                                                        )
-                                                    }
-                                                }
-
+                                                Text(
+                                                    text = ep.title,
+                                                    color = Color.White,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    fontFamily = StremioFontFamily
+                                                )
                                                 if (!ep.overview.isNullOrEmpty()) {
-                                                    Spacer(modifier = Modifier.height(4.dp))
                                                     Text(
                                                         text = ep.overview,
                                                         color = TextSecondary,
                                                         fontSize = 11.sp,
                                                         maxLines = 2,
-                                                        overflow = TextOverflow.Ellipsis
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        fontFamily = StremioFontFamily
+                                                    )
+                                                }
+                                            }
+
+                                            if (isEpWatched) {
+                                                Icon(
+                                                    imageVector = Icons.Default.CheckCircle,
+                                                    contentDescription = "Watched",
+                                                    tint = StreamGreen,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 4. Stremio Streams List (StreamsList from Stremio Web)
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 24.dp)
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Stream,
+                                contentDescription = null,
+                                tint = StremioPurple,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Available Streams",
+                                color = Color.White,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = StremioFontFamily
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        if (currentStreams.isEmpty()) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = StremioSurfaceVariant,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = StremioPurpleLight,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = "Querying installed addons for streams... Tap 'Watch Now' to direct play.",
+                                        color = TextSecondary,
+                                        fontSize = 12.sp,
+                                        fontFamily = StremioFontFamily
+                                    )
+                                }
+                            }
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                currentStreams.forEach { streamItem ->
+                                    Card(
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = CardDefaults.cardColors(containerColor = StremioDark),
+                                        border = CardDefaults.outlinedCardBorder().copy(
+                                            brush = androidx.compose.ui.graphics.SolidColor(StremioBorder)
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                viewModel.navigateToPlayer(
+                                                    stream = streamItem,
+                                                    title = item.name,
+                                                    subtitle = selectedEpisode?.let { "S${it.season}:E${it.episode} • ${it.title}" } ?: item.releaseInfo,
+                                                    itemId = item.id,
+                                                    startPositionMs = resumePositionMs,
+                                                    meta = item,
+                                                    episode = selectedEpisode
+                                                )
+                                            }
+                                            .testTag("stream_item_${streamItem.addonName ?: "core"}")
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(34.dp)
+                                                        .clip(CircleShape)
+                                                        .background(StremioPurple.copy(alpha = 0.25f)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.PlayArrow,
+                                                        contentDescription = null,
+                                                        tint = StremioPurpleLight,
+                                                        modifier = Modifier.size(18.dp)
                                                     )
                                                 }
 
-                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Column {
+                                                    Text(
+                                                        text = streamItem.title ?: streamItem.name ?: "Stremio Stream",
+                                                        color = Color.White,
+                                                        fontSize = 13.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        fontFamily = StremioFontFamily
+                                                    )
+                                                    Text(
+                                                        text = "${streamItem.addonName ?: "Stremio Core"} • ${streamItem.name ?: "Direct Stream"}",
+                                                        color = TextMuted,
+                                                        fontSize = 11.sp,
+                                                        fontFamily = StremioFontFamily
+                                                    )
+                                                }
+                                            }
+
+                                            // Quality badge
+                                            Surface(
+                                                color = StremioSurfaceVariant,
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
                                                 Text(
-                                                    text = "Tap to play directly",
-                                                    color = WuPlayCyan,
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Medium
+                                                    text = streamItem.quality ?: "1080p",
+                                                    color = StremioPurpleLight,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontFamily = StremioFontFamily,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                                 )
                                             }
                                         }

@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "WuPlay"
+rootProject.name = "Stremio"
 
 include(":app")

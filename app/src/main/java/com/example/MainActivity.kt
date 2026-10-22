@@ -63,7 +63,7 @@ fun MainAppScaffold(viewModel: MainViewModel) {
     val screenDestination by viewModel.screenDestination.collectAsState()
 
     // Native Back Handler
-    BackHandler(enabled = screenDestination !is ScreenDestination.Tabs || currentTab != AppTab.DISCOVER) {
+    BackHandler(enabled = screenDestination !is ScreenDestination.Tabs || currentTab != AppTab.BOARD) {
         viewModel.navigateBack()
     }
 
@@ -73,25 +73,28 @@ fun MainAppScaffold(viewModel: MainViewModel) {
         bottomBar = {
             if (!isPlayerScreen) {
                 NavigationBar(
-                    containerColor = StreamSurface,
+                    containerColor = StremioDark,
                     contentColor = TextPrimary,
                     tonalElevation = 8.dp,
                     windowInsets = WindowInsets.navigationBars,
                     modifier = Modifier.testTag("main_bottom_nav")
                 ) {
                     val tabs = listOf(
-                        AppTab.DISCOVER to ("Home" to Icons.Default.Explore),
-                        AppTab.STREAMING to ("Networks" to Icons.Default.Tv),
+                        AppTab.BOARD to ("Board" to Icons.Default.Home),
+                        AppTab.DISCOVER to ("Discover" to Icons.Default.Explore),
+                        AppTab.LIBRARY to ("Library" to Icons.Default.Bookmark),
                         AppTab.SEARCH to ("Search" to Icons.Default.Search),
-                        AppTab.WATCHLIST to ("Watchlist" to Icons.Default.Bookmark),
+                        AppTab.ADDONS to ("Addons" to Icons.Default.Extension),
                         AppTab.SETTINGS to ("Settings" to Icons.Default.Settings)
                     )
 
                     tabs.forEach { (tab, info) ->
                         val (label, icon) = info
                         val isSelected = (currentTab == tab ||
-                                (tab == AppTab.WATCHLIST && currentTab == AppTab.LIBRARY) ||
-                                (tab == AppTab.SETTINGS && (currentTab == AppTab.ACCOUNT || currentTab == AppTab.ADDONS)))
+                                (tab == AppTab.BOARD && currentTab == AppTab.BOARD) ||
+                                (tab == AppTab.DISCOVER && currentTab == AppTab.STREAMING) ||
+                                (tab == AppTab.LIBRARY && currentTab == AppTab.WATCHLIST) ||
+                                (tab == AppTab.SETTINGS && currentTab == AppTab.ACCOUNT))
                                 && screenDestination is ScreenDestination.Tabs
 
                         NavigationBarItem(
@@ -113,8 +116,8 @@ fun MainAppScaffold(viewModel: MainViewModel) {
                             },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Color.White,
-                                selectedTextColor = WuPlayCyan,
-                                indicatorColor = WuPlayPurple,
+                                selectedTextColor = StremioPurpleLight,
+                                indicatorColor = StremioPurple,
                                 unselectedIconColor = TextSecondary,
                                 unselectedTextColor = TextSecondary
                             ),
@@ -124,7 +127,7 @@ fun MainAppScaffold(viewModel: MainViewModel) {
                 }
             }
         },
-        containerColor = StreamBg,
+        containerColor = StremioBg,
         modifier = Modifier.fillMaxSize()
     ) { innerPadding ->
         Box(
@@ -158,7 +161,7 @@ fun MainAppScaffold(viewModel: MainViewModel) {
 
                 is ScreenDestination.Tabs -> {
                     when (currentTab) {
-                        AppTab.DISCOVER -> {
+                        AppTab.BOARD -> {
                             HomeScreen(
                                 viewModel = viewModel,
                                 onNavigateToDetail = { id, type ->
@@ -167,8 +170,17 @@ fun MainAppScaffold(viewModel: MainViewModel) {
                             )
                         }
 
-                        AppTab.STREAMING -> {
+                        AppTab.DISCOVER, AppTab.STREAMING -> {
                             StreamingServicesScreen(
+                                viewModel = viewModel,
+                                onNavigateToDetail = { id, type ->
+                                    viewModel.navigateToDetail(id, type)
+                                }
+                            )
+                        }
+
+                        AppTab.LIBRARY, AppTab.WATCHLIST -> {
+                            WatchlistScreen(
                                 viewModel = viewModel,
                                 onNavigateToDetail = { id, type ->
                                     viewModel.navigateToDetail(id, type)
@@ -185,16 +197,11 @@ fun MainAppScaffold(viewModel: MainViewModel) {
                             )
                         }
 
-                        AppTab.WATCHLIST, AppTab.LIBRARY -> {
-                            WatchlistScreen(
-                                viewModel = viewModel,
-                                onNavigateToDetail = { id, type ->
-                                    viewModel.navigateToDetail(id, type)
-                                }
-                            )
+                        AppTab.ADDONS -> {
+                            AddonsScreen(viewModel = viewModel)
                         }
 
-                        AppTab.SETTINGS, AppTab.ACCOUNT, AppTab.ADDONS -> {
+                        AppTab.SETTINGS, AppTab.ACCOUNT -> {
                             SettingsScreen(viewModel = viewModel)
                         }
                     }
